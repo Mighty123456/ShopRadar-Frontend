@@ -1,0 +1,22 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Radar Circle -->
+  <circle cx="100" cy="100" r="80" stroke="#2979FF" stroke-width="3" fill="none" opacity="0.3"/>
+  <circle cx="100" cy="100" r="60" stroke="#2979FF" stroke-width="2" fill="none" opacity="0.5"/>
+  <circle cx="100" cy="100" r="40" stroke="#2979FF" stroke-width="2" fill="none" opacity="0.7"/>
+  
+  <!-- Radar Sweep -->
+  <path d="M100 100 L100 20 A80 80 0 0 1 180 100 Z" fill="#2979FF" opacity="0.2"/>
+  
+  <!-- Center Dot -->
+  <circle cx="100" cy="100" r="8" fill="#2979FF"/>
+  
+  <!-- Shopping Icons -->
+  <circle cx="140" cy="60" r="15" fill="#FF6B35" opacity="0.9"/>
+  <path d="M140 55 L140 65 M135 60 L145 60" stroke="white" stroke-width="2"/>
+  
+  <circle cx="60" cy="140" r="15" fill="#2DD4BF" opacity="0.9"/>
+  <path d="M60 135 L60 145 M55 140 L65 140" stroke="white" stroke-width="2"/>
+  
+  <circle cx="160" cy="140" r="15" fill="#10B981" opacity="0.9"/>
+  <path d="M160 135 L160 145 M155 140 L165 140" stroke="white" stroke-width="2"/>
+</svg>

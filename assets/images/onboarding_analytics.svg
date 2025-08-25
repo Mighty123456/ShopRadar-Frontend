@@ -1,0 +1,29 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Chart Background -->
+  <rect x="30" y="40" width="140" height="100" rx="8" fill="#2DD4BF" opacity="0.1" stroke="#2DD4BF" stroke-width="2"/>
+  
+  <!-- Chart Grid Lines -->
+  <line x1="30" y1="80" x2="170" y2="80" stroke="#2DD4BF" stroke-width="1" opacity="0.3"/>
+  <line x1="30" y1="120" x2="170" y2="120" stroke="#2DD4BF" stroke-width="1" opacity="0.3"/>
+  <line x1="70" y1="40" x2="70" y2="140" stroke="#2DD4BF" stroke-width="1" opacity="0.3"/>
+  <line x1="110" y1="40" x2="110" y2="140" stroke="#2DD4BF" stroke-width="1" opacity="0.3"/>
+  <line x1="150" y1="40" x2="150" y2="140" stroke="#2DD4BF" stroke-width="1" opacity="0.3"/>
+  
+  <!-- Price Chart Line -->
+  <path d="M30 120 L70 100 L110 80 L150 60 L170 40" stroke="#2DD4BF" stroke-width="4" fill="none"/>
+  
+  <!-- Data Points -->
+  <circle cx="30" cy="120" r="4" fill="#2DD4BF"/>
+  <circle cx="70" cy="100" r="4" fill="#2DD4BF"/>
+  <circle cx="110" cy="80" r="4" fill="#2DD4BF"/>
+  <circle cx="150" cy="60" r="4" fill="#2DD4BF"/>
+  <circle cx="170" cy="40" r="4" fill="#2DD4BF"/>
+  
+  <!-- Price Drop Indicator -->
+  <path d="M120 160 L130 150 L140 160" stroke="#2DD4BF" stroke-width="3" fill="none"/>
+  <text x="130" y="175" text-anchor="middle" fill="#2DD4BF" font-size="14" font-weight="bold">Price Drop</text>
+  
+  <!-- Alert Bell -->
+  <path d="M160 30 L160 50 L150 50 L150 60 L170 60 L170 50 L160 50 Z" fill="#2DD4BF"/>
+  <circle cx="160" cy="35" r="3" fill="#2DD4BF"/>
+</svg>
