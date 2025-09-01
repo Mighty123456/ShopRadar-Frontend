@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
@@ -17,17 +18,44 @@ class AuthService {
     required String password,
     required String fullName,
     required String role,
+    String? shopName,
+    String? licenseNumber,
+    String? state,
+    String? phone,
+    String? address,
+    File? licenseFile,
   }) async {
     try {
       debugPrint('Starting registration for email: $email');
       
       debugPrint('Sending registration request...');
-      final response = await ApiService.post('/api/auth/register', {
+      // Prepare registration data
+      final Map<String, dynamic> registrationData = {
         'email': email,
         'password': password,
         'fullName': fullName,
         'role': role,
-      }).timeout(
+      };
+      
+      // Add shop owner specific data if role is shop
+      if (role == 'shop') {
+        registrationData.addAll({
+          'shopName': shopName,
+          'licenseNumber': licenseNumber,
+          'state': state,
+          'phone': phone,
+          'address': address,
+        });
+        
+        // Handle file upload if license file is provided
+        if (licenseFile != null) {
+          // For now, we'll send the file path
+          // In a real implementation, you'd want to handle multipart form data
+          registrationData['licenseFile'] = licenseFile.path;
+        }
+      }
+      
+      final response = await ApiService.post('/api/auth/register', registrationData).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
           throw TimeoutException('Registration request timed out', const Duration(seconds: 30));

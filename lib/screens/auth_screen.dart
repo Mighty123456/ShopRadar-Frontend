@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:io';
 import '../widgets/social_login_buttons.dart';
 import '../widgets/role_selector.dart';
 import '../services/auth_service.dart';
 import '../widgets/animated_message_dialog.dart';
 import '../models/user_model.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:file_picker/file_picker.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -267,6 +269,8 @@ class _SignInFormState extends State<_SignInForm> {
 
       if (!mounted) return;
 
+      final navigator = Navigator.of(context);
+      
       if (result['success']) {
         final user = result['user'] as UserModel?;
         final isShopOwner = user?.role == 'shop';
@@ -279,9 +283,9 @@ class _SignInFormState extends State<_SignInForm> {
         );
         
         if (isShopOwner) {
-          Navigator.of(context).pushReplacementNamed('/shop-owner-dashboard');
+          navigator.pushReplacementNamed('/shop-owner-dashboard');
         } else {
-          Navigator.of(context).pushReplacementNamed('/home');
+          navigator.pushReplacementNamed('/home');
         }
       } else {
         MessageHelper.showAnimatedMessage(
@@ -462,28 +466,96 @@ class _SignUpFormState extends State<_SignUpForm> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _shopNameController = TextEditingController();
+  final _licenseNumberController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+  
   bool agreeToTerms = false;
   String selectedRole = 'user';
+  String selectedState = 'Maharashtra';
   bool _isLoading = false;
   bool _obscurePassword = true;
+  File? _licenseFile;
+  String? _licenseFileName;
+  bool _isUploading = false;
+  
+  // List of Indian states
+  final List<String> _states = [
+    'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+    'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+    'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+    'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+    'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+    'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Chandigarh', 'Dadra and Nagar Haveli',
+    'Daman and Diu', 'Lakshadweep', 'Puducherry', 'Andaman and Nicobar Islands'
+  ];
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _shopNameController.dispose();
+    _licenseNumberController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickLicenseFile() async {
+    try {
+      setState(() => _isUploading = true);
+      
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+        allowMultiple: false,
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        if (file.path != null) {
+          setState(() {
+            _licenseFile = File(file.path!);
+            _licenseFileName = file.name;
+          });
+        }
+      }
+    } catch (e) {
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'Error picking file: $e',
+        type: MessageType.error,
+        title: 'File Error',
+      );
+    } finally {
+      setState(() => _isUploading = false);
+    }
   }
 
   Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
-    if (!agreeToTerms) {
-              MessageHelper.showAnimatedMessage(
+    
+    if (selectedRole == 'shop') {
+      if (_licenseFile == null) {
+        MessageHelper.showAnimatedMessage(
           context,
-          message: 'Please agree to Terms & Conditions',
+          message: 'Please upload your Shop Act License',
           type: MessageType.warning,
-          title: 'Terms Required',
+          title: 'License Required',
         );
+        return;
+      }
+    }
+    
+    if (!agreeToTerms) {
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'Please agree to Terms & Conditions',
+        type: MessageType.warning,
+        title: 'Terms Required',
+      );
       return;
     }
 
@@ -495,6 +567,12 @@ class _SignUpFormState extends State<_SignUpForm> {
         password: _passwordController.text,
         fullName: _nameController.text.trim(),
         role: selectedRole,
+        shopName: selectedRole == 'shop' ? _shopNameController.text.trim() : null,
+        licenseNumber: selectedRole == 'shop' ? _licenseNumberController.text.trim() : null,
+        state: selectedRole == 'shop' ? selectedState : null,
+        phone: selectedRole == 'shop' ? _phoneController.text.trim() : null,
+        address: selectedRole == 'shop' ? _addressController.text.trim() : null,
+        licenseFile: selectedRole == 'shop' ? _licenseFile : null,
       ).timeout(
         const Duration(seconds: 35),
         onTimeout: () {
@@ -508,6 +586,8 @@ class _SignUpFormState extends State<_SignUpForm> {
 
       if (!mounted) return;
 
+      final navigator = Navigator.of(context);
+      
       if (result['success']) {
         MessageHelper.showAnimatedMessage(
           context,
@@ -515,7 +595,7 @@ class _SignUpFormState extends State<_SignUpForm> {
           type: MessageType.success,
           title: 'Account Created!',
         );
-        Navigator.of(context).pushNamed('/otp-verification', arguments: {
+        navigator.pushNamed('/otp-verification', arguments: {
           'email': _emailController.text.trim(),
           'userId': result['userId'],
         });
@@ -591,11 +671,13 @@ class _SignUpFormState extends State<_SignUpForm> {
         const SizedBox(height: 18),
         
         if (selectedRole == 'shop') ...[
+          // Shop Name Field
           TextFormField(
+            controller: _shopNameController,
             decoration: InputDecoration(
               filled: true,
               fillColor: const Color(0xFFF7F8FA),
-              labelText: 'Shop Name',
+              labelText: 'Shop Name *',
               labelStyle: GoogleFonts.poppins(
                 color: Color(0xFF6B7280),
                 fontWeight: FontWeight.w500,
@@ -610,6 +692,10 @@ class _SignUpFormState extends State<_SignUpForm> {
                 borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: Color(0xFF2979FF), width: 2),
               ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.red),
+              ),
             ),
             style: GoogleFonts.poppins(
               color: Color(0xFF232136),
@@ -617,20 +703,32 @@ class _SignUpFormState extends State<_SignUpForm> {
               fontSize: 16,
             ),
             cursorColor: const Color(0xFF2979FF),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter shop name';
+              }
+              if (value.length < 3) {
+                return 'Shop name must be at least 3 characters';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 18),
           
+          // License Number Field
           TextFormField(
+            controller: _licenseNumberController,
             decoration: InputDecoration(
               filled: true,
               fillColor: const Color(0xFFF7F8FA),
-              labelText: 'Business Type',
+              labelText: 'Shop Act License Number *',
               labelStyle: GoogleFonts.poppins(
                 color: Color(0xFF6B7280),
                 fontWeight: FontWeight.w500,
                 fontSize: 16,
               ),
-              prefixIcon: const Icon(Icons.business, color: Color(0xFF6B7280)),
+              prefixIcon: const Icon(Icons.verified_user, color: Color(0xFF6B7280)),
+              hintText: 'Enter your license number',
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -639,6 +737,10 @@ class _SignUpFormState extends State<_SignUpForm> {
                 borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: Color(0xFF2979FF), width: 2),
               ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.red),
+              ),
             ),
             style: GoogleFonts.poppins(
               color: Color(0xFF232136),
@@ -646,20 +748,81 @@ class _SignUpFormState extends State<_SignUpForm> {
               fontSize: 16,
             ),
             cursorColor: const Color(0xFF2979FF),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter license number';
+              }
+              if (value.length < 5) {
+                return 'License number must be at least 5 characters';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 18),
           
+          // State Dropdown
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F8FA),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: DropdownButtonFormField<String>(
+              value: selectedState,
+              decoration: InputDecoration(
+                labelText: 'State *',
+                labelStyle: GoogleFonts.poppins(
+                  color: Color(0xFF6B7280),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                ),
+                prefixIcon: const Icon(Icons.location_on, color: Color(0xFF6B7280)),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
+              style: GoogleFonts.poppins(
+                color: Color(0xFF232136),
+                fontWeight: FontWeight.w500,
+                fontSize: 16,
+              ),
+              dropdownColor: Colors.white,
+              items: _states.map((String state) {
+                return DropdownMenuItem<String>(
+                  value: state,
+                  child: Text(state),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    selectedState = newValue;
+                  });
+                }
+              },
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please select a state';
+                }
+                return null;
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+          
+          // Phone Number Field
           TextFormField(
+            controller: _phoneController,
             decoration: InputDecoration(
               filled: true,
               fillColor: const Color(0xFFF7F8FA),
-              labelText: 'Phone Number',
+              labelText: 'Phone Number *',
               labelStyle: GoogleFonts.poppins(
                 color: Color(0xFF6B7280),
                 fontWeight: FontWeight.w500,
                 fontSize: 16,
               ),
               prefixIcon: const Icon(Icons.phone, color: Color(0xFF6B7280)),
+              hintText: 'Enter your phone number',
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -667,6 +830,10 @@ class _SignUpFormState extends State<_SignUpForm> {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: Color(0xFF2979FF), width: 2),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.red),
               ),
             ),
             style: GoogleFonts.poppins(
@@ -676,20 +843,32 @@ class _SignUpFormState extends State<_SignUpForm> {
             ),
             keyboardType: TextInputType.phone,
             cursorColor: const Color(0xFF2979FF),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter phone number';
+              }
+              if (!RegExp(r'^[0-9]{10}$').hasMatch(value)) {
+                return 'Please enter a valid 10-digit phone number';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 18),
           
+          // Address Field
           TextFormField(
+            controller: _addressController,
             decoration: InputDecoration(
               filled: true,
               fillColor: const Color(0xFFF7F8FA),
-              labelText: 'Shop Address',
+              labelText: 'Shop Address *',
               labelStyle: GoogleFonts.poppins(
                 color: Color(0xFF6B7280),
                 fontWeight: FontWeight.w500,
                 fontSize: 16,
               ),
               prefixIcon: const Icon(Icons.location_on, color: Color(0xFF6B7280)),
+              hintText: 'Enter your complete shop address',
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -698,14 +877,203 @@ class _SignUpFormState extends State<_SignUpForm> {
                 borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: Color(0xFF2979FF), width: 2),
               ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.red),
+              ),
             ),
             style: GoogleFonts.poppins(
               color: Color(0xFF232136),
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),
-            maxLines: 2,
+            maxLines: 3,
             cursorColor: const Color(0xFF2979FF),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter shop address';
+              }
+              if (value.length < 10) {
+                return 'Address must be at least 10 characters';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 18),
+          
+          // License File Upload
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: _licenseFile != null ? const Color(0xFF2979FF) : const Color(0xFFE5E7EB),
+                width: _licenseFile != null ? 2 : 1,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              color: const Color(0xFFF7F8FA),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.upload_file,
+                        color: _licenseFile != null ? const Color(0xFF2979FF) : const Color(0xFF6B7280),
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Shop Act License *',
+                              style: GoogleFonts.poppins(
+                                color: const Color(0xFF6B7280),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Upload PDF, JPG, or PNG (Max 10MB)',
+                              style: GoogleFonts.poppins(
+                                color: const Color(0xFF6B7280),
+                                fontWeight: FontWeight.w400,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_licenseFile != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE3F2FD),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF2979FF)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          color: const Color(0xFF2979FF),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _licenseFileName ?? 'File uploaded',
+                            style: GoogleFonts.poppins(
+                              color: const Color(0xFF2979FF),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _licenseFile = null;
+                              _licenseFileName = null;
+                            });
+                          },
+                          icon: const Icon(Icons.close, color: Color(0xFF2979FF)),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isUploading ? null : _pickLicenseFile,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _licenseFile != null 
+                            ? const Color(0xFFE3F2FD) 
+                            : const Color(0xFF2979FF),
+                        foregroundColor: _licenseFile != null 
+                            ? const Color(0xFF2979FF) 
+                            : Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      icon: _isUploading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2979FF)),
+                              ),
+                            )
+                          : Icon(
+                              _licenseFile != null ? Icons.refresh : Icons.upload_file,
+                              size: 20,
+                            ),
+                      label: Text(
+                        _isUploading
+                            ? 'Uploading...'
+                            : _licenseFile != null
+                                ? 'Change File'
+                                : 'Choose File',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          
+          // Verification Notice
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3E0),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFF9800)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: const Color(0xFFFF9800),
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Your account will be marked as "Pending Verification" until we verify your license. This process typically takes 24-48 hours.',
+                    style: GoogleFonts.poppins(
+                      color: const Color(0xFFFF9800),
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 18),
         ],
