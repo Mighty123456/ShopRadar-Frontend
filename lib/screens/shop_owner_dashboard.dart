@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/animated_message_dialog.dart';
+import '../services/shop_service.dart';
 import 'shop_profile_screen.dart';
 import 'product_management_screen.dart';
 import 'offer_promotion_screen.dart';
@@ -7,6 +8,8 @@ import 'analytics_dashboard_screen.dart';
 import 'customer_interaction_screen.dart';
 import 'ai_insights_screen.dart';
 import 'profile_screen.dart';
+import '../services/auth_service.dart';
+// Removed unused UserModel import
 
 class ShopOwnerDashboard extends StatefulWidget {
   const ShopOwnerDashboard({super.key});
@@ -18,6 +21,61 @@ class ShopOwnerDashboard extends StatefulWidget {
 class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
   int _selectedIndex = 0;
   bool _isShopOpen = true;
+  Map<String, dynamic>? _shopData;
+  Map<String, dynamic>? _shopStats;
+  // Removed unused field _currentUser
+
+  @override
+  void initState() {
+    super.initState();
+    _enforceRoleAccess();
+    _loadShopData();
+  }
+
+  Future<void> _loadShopData() async {
+    try {
+      // Load shop data and stats in parallel
+      final results = await Future.wait([
+        ShopService.getMyShop(),
+        ShopService.getShopStats(),
+      ]);
+      
+      final shopResult = results[0];
+      final statsResult = results[1];
+      
+      if (mounted) {
+        setState(() {
+          if (shopResult['success']) {
+            _shopData = shopResult['shop'];
+            _isShopOpen = _shopData?['isLive'] ?? false;
+          }
+          if (statsResult['success']) {
+            _shopStats = statsResult['stats'];
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Failed to load shop data: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Error',
+        );
+      }
+    }
+  }
+
+  Future<void> _enforceRoleAccess() async {
+    try {
+      final user = await AuthService.getUser();
+      if (!mounted) return;
+      if (user == null || user.role != 'shop') {
+        // Non-shop users should not access dashboard
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +94,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF2979FF),
         elevation: 0,
+        automaticallyImplyLeading: false,
         toolbarHeight: isLargeTablet ? 80 : (isTablet ? 70 : 56),
         title: Row(
           children: [
@@ -78,12 +137,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
                 ],
                 Switch(
                   value: _isShopOpen,
-                  onChanged: (value) {
-                    setState(() {
-                      _isShopOpen = value;
-                    });
-                    _showStatusChangeMessage(value);
-                  },
+                  onChanged: _updateShopStatus,
                   activeColor: Colors.green,
                   inactiveThumbColor: Colors.red,
                 ),
@@ -246,7 +300,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
       children: [
         _buildStatCard(
           'Total Products',
-          '0',
+          '${_shopStats?['totalProducts'] ?? 0}',
           Icons.inventory,
           Colors.blue,
           isSmallScreen,
@@ -258,7 +312,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
         ),
         _buildStatCard(
           'Active Offers',
-          '0',
+          '${_shopStats?['activeOffers'] ?? 0}',
           Icons.local_offer,
           Colors.orange,
           isSmallScreen,
@@ -270,7 +324,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
         ),
         _buildStatCard(
           'Today\'s Views',
-          '0',
+          '${_shopStats?['todaysViews'] ?? 0}',
           Icons.visibility,
           Colors.green,
           isSmallScreen,
@@ -282,7 +336,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
         ),
         _buildStatCard(
           'Customer Reviews',
-          '0',
+          '${_shopStats?['customerReviews'] ?? 0}',
           Icons.star,
           Colors.amber,
           isSmallScreen,
@@ -690,14 +744,44 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
     return const ProfileScreen();
   }
 
-  void _showStatusChangeMessage(bool isOpen) {
-    MessageHelper.showAnimatedMessage(
-      context,
-      message: isOpen 
-        ? 'Your shop is now open and visible to customers!'
-        : 'Your shop is now closed. Customers cannot place orders.',
-      type: MessageType.success,
-      title: isOpen ? 'Shop Opened' : 'Shop Closed',
-    );
+  Future<void> _updateShopStatus(bool isOpen) async {
+    try {
+      final result = await ShopService.updateShopStatus(isLive: isOpen);
+      
+      if (mounted) {
+        if (result['success']) {
+          setState(() {
+            _isShopOpen = isOpen;
+            _shopData?['isLive'] = isOpen;
+          });
+          
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: result['message'] ?? (isOpen 
+              ? 'Your shop is now open and visible to customers!'
+              : 'Your shop is now closed. Customers cannot place orders.'),
+            type: MessageType.success,
+            title: isOpen ? 'Shop Opened' : 'Shop Closed',
+          );
+        } else {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: result['message'] ?? 'Failed to update shop status',
+            type: MessageType.error,
+            title: 'Error',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Network error: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Error',
+        );
+      }
+    }
   }
+
 }

@@ -47,21 +47,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Colors.white,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2979FF)),
               ),
-              SizedBox(height: 20),
+              SizedBox(height: 16),
               Text(
-                'Loading ShopRadar...',
+                'Checking authentication...',
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
+                  color: Color(0xFF6B7280),
+                  fontSize: 16,
                 ),
               ),
             ],
@@ -76,10 +74,22 @@ class _AuthWrapperState extends State<AuthWrapper> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
-              backgroundColor: Colors.white,
               body: Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2979FF)),
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      'Loading user data...',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );

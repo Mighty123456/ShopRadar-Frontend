@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../utils/onboarding_utils.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onFinish;
@@ -71,8 +70,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     super.dispose();
   }
 
-  void _finishOnboarding() async {
-    await OnboardingUtils.markOnboardingComplete();
+  void _finishOnboarding() {
     widget.onFinish();
   }
 

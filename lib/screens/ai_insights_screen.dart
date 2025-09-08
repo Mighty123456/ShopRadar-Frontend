@@ -1,3 +1,4 @@
+// ignore_for_file: unused_element
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -10,131 +11,36 @@ class AIInsightsScreen extends StatefulWidget {
 
 class _AIInsightsScreenState extends State<AIInsightsScreen> {
   String _selectedInsight = 'Pricing Trends';
-
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isTablet = screenWidth >= 600 && screenWidth < 900;
-    final isLargeTablet = screenWidth >= 900;
-    final isSmallScreen = screenWidth < 600;
-    
-    // Enhanced responsive breakpoints
-    final isMedium = screenWidth >= 600 && screenWidth < 768;
-    final isLarge = screenWidth >= 768 && screenWidth < 1024;
-    final isExtraLarge = screenWidth >= 1024;
-    
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: EdgeInsets.all(isExtraLarge ? 24 : (isLarge ? 20 : (isMedium ? 16 : 12))),
-              color: Colors.white,
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'AI Business Insights',
-                          style: TextStyle(
-                            fontSize: isExtraLarge ? 28 : (isLarge ? 26 : (isMedium ? 24 : 20)),
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (!isSmallScreen) ...[
-                        SizedBox(width: isExtraLarge ? 20 : (isLarge ? 16 : (isMedium ? 12 : 8))),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isExtraLarge ? 16 : (isLarge ? 14 : (isMedium ? 12 : 10)), 
-                            vertical: isExtraLarge ? 12 : (isLarge ? 10 : (isMedium ? 8 : 6))
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(isExtraLarge ? 12 : (isLarge ? 10 : (isMedium ? 8 : 6))),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _selectedInsight,
-                              isExpanded: false,
-                              hint: Text(
-                                'Select insight',
-                                style: TextStyle(
-                                  fontSize: isExtraLarge ? 16 : (isLarge ? 15 : (isMedium ? 14 : 12))
-                                ),
-                              ),
-                              items: [
-                                DropdownMenuItem(
-                                  value: 'Pricing Trends', 
-                                  child: Text(
-                                    'Pricing Trends',
-                                    style: TextStyle(
-                                      fontSize: isExtraLarge ? 16 : (isLarge ? 15 : (isMedium ? 14 : 12))
-                                    ),
-                                  )
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Customer Behavior', 
-                                  child: Text(
-                                    'Customer Behavior',
-                                    style: TextStyle(
-                                      fontSize: isExtraLarge ? 16 : (isLarge ? 15 : (isMedium ? 14 : 12))
-                                    ),
-                                  )
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Market Analysis', 
-                                  child: Text(
-                                    'Market Analysis',
-                                    style: TextStyle(
-                                      fontSize: isExtraLarge ? 16 : (isLarge ? 15 : (isMedium ? 14 : 12))
-                                    ),
-                                  )
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Optimization Tips', 
-                                  child: Text(
-                                    'Optimization Tips',
-                                    style: TextStyle(
-                                      fontSize: isExtraLarge ? 16 : (isLarge ? 15 : (isMedium ? 14 : 12))
-                                    ),
-                                  )
-                                ),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedInsight = value!;
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  SizedBox(height: isExtraLarge ? 20 : (isLarge ? 18 : (isMedium ? 16 : 14))),
-                  _buildInsightTabs(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
-                ],
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF2979FF),
+        elevation: 0,
+        title: const Text('AI Insights', style: TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.psychology, size: 72, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              const Text(
+                'AI Insights Coming Soon',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
-            ),
-            
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(isExtraLarge ? 24 : (isLarge ? 20 : (isMedium ? 16 : 12))),
-                child: Column(
-                  children: [
-                    _buildInsightContent(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
-                    SizedBox(height: isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : 20))),
-                    _buildRecommendationsSection(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
-                  ],
-                ),
+              const SizedBox(height: 8),
+              Text(
+                'Insights will appear here when available.',
+                style: TextStyle(color: Colors.grey[600]),
+                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

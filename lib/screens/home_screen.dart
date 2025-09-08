@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import '../widgets/animated_message_dialog.dart';
+import 'map_screen.dart';
+import 'notifications_screen.dart';
+import '../services/notification_service.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,10 +18,14 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   int _selectedIndex = 0;
   bool _isMapView = false;
+  int _unreadNotifications = 0;
+  UserModel? _currentUser;
 
   @override
   void initState() {
     super.initState();
+    _loadNotificationCount();
+    _enforceRoleAccess();
     // Show welcome message after a short delay
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 500), () {
@@ -25,6 +34,36 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
     });
+  }
+
+  Future<void> _loadNotificationCount() async {
+    final count = await NotificationService.getUnreadCount();
+    if (mounted) {
+      setState(() {
+        _unreadNotifications = count;
+      });
+    }
+  }
+
+  Future<void> _enforceRoleAccess() async {
+    try {
+      final user = await AuthService.getUser();
+      if (!mounted) return;
+      setState(() {
+        _currentUser = user;
+      });
+      if (user != null && user.role == 'shop') {
+        Navigator.of(context).pushReplacementNamed('/shop-owner-dashboard');
+      }
+    } catch (_) {}
+  }
+
+  void _showComparisonDialog() {
+    // Comparison requires real data; navigate to stores or show info
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Select shops from Stores to compare')),
+    );
+    Navigator.of(context).pushNamed('/stores');
   }
 
   @override
@@ -72,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF2979FF),
         elevation: 0,
+        automaticallyImplyLeading: false,
         toolbarHeight: isLargeTablet ? 80 : (isTablet ? 70 : 56),
         title: Row(
           children: [
@@ -91,24 +131,70 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: Icon(_isMapView ? Icons.list : Icons.map, color: Colors.white),
             onPressed: () {
-              setState(() {
-                _isMapView = !_isMapView;
-              });
+              if (_isMapView) {
+                setState(() {
+                  _isMapView = false;
+                });
+              } else {
+                // Navigate to full map screen
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => MapScreen(
+                      searchQuery: _searchController.text,
+                    ),
+                  ),
+                );
+              }
             },
           ),
-          IconButton(
-            icon: Icon(Icons.notifications, color: Colors.white),
-            onPressed: () {
-              // TODO: Navigate to notifications
-            },
+          Stack(
+            children: [
+              IconButton(
+                icon: Icon(Icons.notifications, color: Colors.white),
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const NotificationsScreen(),
+                    ),
+                  );
+                  _loadNotificationCount(); // Refresh count when returning
+                },
+              ),
+              if (_unreadNotifications > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      _unreadNotifications > 99 ? '99+' : _unreadNotifications.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          IconButton(
-            icon: Icon(Icons.store, color: Colors.white),
-            onPressed: () {
-              Navigator.of(context).pushNamed('/shop-owner-dashboard');
-            },
-            tooltip: 'Shop Owner Dashboard',
-          ),
+          if (_currentUser?.role == 'shop')
+            IconButton(
+              icon: Icon(Icons.store, color: Colors.white),
+              onPressed: () {
+                Navigator.of(context).pushNamed('/shop-owner-dashboard');
+              },
+              tooltip: 'Shop Owner Dashboard',
+            ),
           IconButton(
             icon: Icon(Icons.person, color: Colors.white),
             onPressed: () {
@@ -153,11 +239,23 @@ class _HomeScreenState extends State<HomeScreen> {
                           decoration: InputDecoration(
                             hintText: 'Search products, stores, or categories...',
                             prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-                            suffixIcon: IconButton(
-                              icon: Icon(Icons.filter_list, color: Colors.grey[600]),
-                              onPressed: () {
-                                // TODO: Show filters
-                              },
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.compare_arrows, color: Colors.grey[600]),
+                                  onPressed: () {
+                                    _showComparisonDialog();
+                                  },
+                                  tooltip: 'Compare shops',
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.filter_list, color: Colors.grey[600]),
+                                  onPressed: () {
+                                    // TODO: Show filters
+                                  },
+                                ),
+                              ],
                             ),
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.symmetric(

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class NetworkConfig {
@@ -10,16 +11,16 @@ class NetworkConfig {
   
   static const Map<String, String> baseUrls = {
     emulator: 'http://10.0.2.2:3000',
-    physicalDevice: 'http://localhost:3000',
+    physicalDevice: 'http://10.154.51.145:3000', // Your actual IP
     simulator: 'http://localhost:3000',
   };
   
   static const List<String> networkPatterns = [
+    '10.154.51', // Your network range
     '192.168.1',
     '192.168.0',
     '10.0.0',
     '10.1.0',
-    '10.154.51',
     '172.16',
     '172.20.10',
     '172.31',
@@ -65,12 +66,16 @@ class NetworkConfig {
       if (Platform.isAndroid) {
         final isEmulator = await _checkIfEmulator();
         _currentEnvironment = isEmulator ? emulator : physicalDevice;
+        debugPrint('Android detected - Environment: $_currentEnvironment');
       } else if (Platform.isIOS) {
         _currentEnvironment = simulator;
+        debugPrint('iOS detected - Environment: $_currentEnvironment');
       } else {
         _currentEnvironment = physicalDevice;
+        debugPrint('Other platform detected - Environment: $_currentEnvironment');
       }
     } catch (e) {
+      debugPrint('Environment detection error: $e - Defaulting to physical device');
       _currentEnvironment = physicalDevice;
     }
   }
@@ -87,15 +92,21 @@ class NetworkConfig {
   
   static Future<void> _comprehensiveNetworkDiscovery() async {
     try {
-      for (final baseUrl in baseUrls.values) {
-        if (await _testConnection(baseUrl).timeout(
-          const Duration(seconds: 3),
+      // Test all base URLs in parallel for faster discovery
+      final futures = baseUrls.values.map((baseUrl) => 
+        _testConnection(baseUrl).timeout(
+          const Duration(seconds: 5),
           onTimeout: () => false,
-        )) {
-          _workingBaseUrl = baseUrl;
-          _discoveredIPs.add(baseUrl);
-          return;
-        }
+        ).then((isWorking) => isWorking ? baseUrl : null)
+      );
+      
+      final results = await Future.wait(futures);
+      final workingUrl = results.firstWhere((url) => url != null, orElse: () => null);
+      
+      if (workingUrl != null) {
+        _workingBaseUrl = workingUrl;
+        _discoveredIPs.add(workingUrl);
+        return;
       }
       
       await Future.any([
@@ -181,28 +192,38 @@ class NetworkConfig {
   
   static Future<bool> _testConnection(String url) async {
     try {
+      debugPrint('Testing connection to: $url');
       final response = await http.get(Uri.parse('$url/health'))
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 5));
       
       if (response.statusCode == 200) {
+        debugPrint('Connection successful to: $url');
         return true;
+      } else {
+        debugPrint('Connection failed to: $url - Status: ${response.statusCode}');
       }
     } catch (e) {
-      // Connection failed, continue to next option
+      debugPrint('Connection error to: $url - $e');
     }
     return false;
   }
   
   static String _getFallbackUrl() {
     if (_currentEnvironment == emulator) {
+      debugPrint('Using emulator fallback URL: ${baseUrls[emulator]}');
       return baseUrls[emulator]!;
     } else if (_currentEnvironment == simulator) {
+      debugPrint('Using simulator fallback URL: ${baseUrls[simulator]}');
       return baseUrls[simulator]!;
     } else {
-      _workingBaseUrl ??= _discoveredIPs.isNotEmpty 
-          ? _discoveredIPs.first 
-          : 'http://192.168.1.1:3000';
-      return _workingBaseUrl!;
+      // For physical device, try discovered IPs first, then your specific IP
+      if (_discoveredIPs.isNotEmpty) {
+        debugPrint('Using discovered IP: ${_discoveredIPs.first}');
+        return _discoveredIPs.first;
+      } else {
+        debugPrint('Using physical device fallback URL: ${baseUrls[physicalDevice]}');
+        return baseUrls[physicalDevice]!;
+      }
     }
   }
   
@@ -238,6 +259,16 @@ class NetworkConfig {
   
   static List<String> get discoveredUrls => List.unmodifiable(_discoveredIPs);
   
+  // Manual environment override for testing
+  static void setEnvironment(String environment) {
+    if ([emulator, physicalDevice, simulator].contains(environment)) {
+      _currentEnvironment = environment;
+      debugPrint('Environment manually set to: $environment');
+    }
+  }
+  
+  static String? get currentEnvironment => _currentEnvironment;
+  
   static List<String> get alternativeUrls {
     final urls = <String>[];
     
@@ -270,9 +301,6 @@ class NetworkConfig {
     return _currentEnvironment == simulator;
   }
   
-  static String get currentEnvironment {
-    return _currentEnvironment ?? physicalDevice;
-  }
   
   static Map<String, dynamic> getNetworkInfo() {
     return {

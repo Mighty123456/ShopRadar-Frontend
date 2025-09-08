@@ -24,6 +24,9 @@ class AuthService {
     String? phone,
     String? address,
     File? licenseFile,
+    Map<String, double>? location,
+    String? gpsAddress,
+    bool? isLocationVerified,
   }) async {
     try {
       debugPrint('Starting registration for email: $email');
@@ -46,6 +49,17 @@ class AuthService {
           'phone': phone,
           'address': address,
         });
+        
+        // Add location verification data
+        if (location != null) {
+          registrationData['location'] = location;
+        }
+        if (gpsAddress != null) {
+          registrationData['gpsAddress'] = gpsAddress;
+        }
+        if (isLocationVerified != null) {
+          registrationData['isLocationVerified'] = isLocationVerified;
+        }
         
         // Handle file upload if license file is provided
         if (licenseFile != null) {
@@ -166,9 +180,9 @@ class AuthService {
         'email': email,
         'password': password,
       }).timeout(
-        const Duration(seconds: 30),
+        const Duration(seconds: 15),
         onTimeout: () {
-          throw TimeoutException('Login request timed out', const Duration(seconds: 30));
+          throw TimeoutException('Login request timed out', const Duration(seconds: 15));
         },
       );
 

@@ -4,10 +4,12 @@ import 'dart:io';
 import '../widgets/social_login_buttons.dart';
 import '../widgets/role_selector.dart';
 import '../services/auth_service.dart';
+import '../services/location_service.dart';
 import '../widgets/animated_message_dialog.dart';
 import '../models/user_model.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:geolocator/geolocator.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -257,7 +259,7 @@ class _SignInFormState extends State<_SignInForm> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       ).timeout(
-        const Duration(seconds: 35),
+        const Duration(seconds: 20),
         onTimeout: () {
           return {
             'success': false,
@@ -480,6 +482,12 @@ class _SignUpFormState extends State<_SignUpForm> {
   String? _licenseFileName;
   bool _isUploading = false;
   
+  // Location verification variables
+  Position? _currentPosition;
+  String? _gpsAddress;
+  bool _isLocationVerified = false;
+  bool _isCapturingLocation = false;
+  
   // List of Indian states
   final List<String> _states = [
     'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -523,14 +531,126 @@ class _SignUpFormState extends State<_SignUpForm> {
         }
       }
     } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error picking file: $e',
+          type: MessageType.error,
+          title: 'File Error',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
+  Future<void> _captureLocation() async {
+    if (_addressController.text.trim().isEmpty) {
       MessageHelper.showAnimatedMessage(
         context,
-        message: 'Error picking file: $e',
-        type: MessageType.error,
-        title: 'File Error',
+        message: 'Please enter your shop address first',
+        type: MessageType.warning,
+        title: 'Address Required',
       );
+      return;
+    }
+
+    setState(() => _isCapturingLocation = true);
+
+    try {
+      // Check and request location permission
+      bool hasPermission = await LocationService.isLocationPermissionGranted();
+      if (!hasPermission) {
+        hasPermission = await LocationService.requestLocationPermission();
+        if (!hasPermission) {
+          if (mounted) {
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: 'Location permission is required to verify your address. Please enable it in settings.',
+              type: MessageType.error,
+              title: 'Permission Required',
+            );
+          }
+          return;
+        }
+      }
+
+      // Get current location
+      Position? position = await LocationService.getCurrentLocation();
+      if (position == null) {
+        if (mounted) {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: 'Unable to get your current location. Please check your GPS settings and try again.',
+            type: MessageType.error,
+            title: 'Location Error',
+          );
+        }
+        return;
+      }
+
+      // Get address from coordinates
+      String? gpsAddress = await LocationService.getAddressFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (gpsAddress == null) {
+        if (mounted) {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: 'Unable to get address from your location. Please try again.',
+            type: MessageType.error,
+            title: 'Address Error',
+          );
+        }
+        return;
+      }
+
+      // Compare addresses
+      bool addressesMatch = LocationService.compareAddresses(
+        _addressController.text.trim(),
+        gpsAddress,
+      );
+
+      setState(() {
+        _currentPosition = position;
+        _gpsAddress = gpsAddress;
+        _isLocationVerified = addressesMatch;
+      });
+
+      if (mounted) {
+        if (addressesMatch) {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: '✅ Location verified successfully! Your address matches your current location.',
+            type: MessageType.success,
+            title: 'Location Verified',
+          );
+        } else {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: '⚠️ Your current location does not match the entered address. Please verify your address or re-upload your license document.',
+            type: MessageType.warning,
+            title: 'Address Mismatch',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error capturing location: $e',
+          type: MessageType.error,
+          title: 'Location Error',
+        );
+      }
     } finally {
-      setState(() => _isUploading = false);
+      if (mounted) {
+        setState(() => _isCapturingLocation = false);
+      }
     }
   }
 
@@ -544,6 +664,16 @@ class _SignUpFormState extends State<_SignUpForm> {
           message: 'Please upload your Shop Act License',
           type: MessageType.warning,
           title: 'License Required',
+        );
+        return;
+      }
+      
+      if (!_isLocationVerified) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Please verify your location by clicking "Verify Location" button',
+          type: MessageType.warning,
+          title: 'Location Verification Required',
         );
         return;
       }
@@ -573,6 +703,11 @@ class _SignUpFormState extends State<_SignUpForm> {
         phone: selectedRole == 'shop' ? _phoneController.text.trim() : null,
         address: selectedRole == 'shop' ? _addressController.text.trim() : null,
         licenseFile: selectedRole == 'shop' ? _licenseFile : null,
+        location: selectedRole == 'shop' && _currentPosition != null 
+            ? LocationService.getLocationMap(_currentPosition!) 
+            : null,
+        gpsAddress: selectedRole == 'shop' ? _gpsAddress : null,
+        isLocationVerified: selectedRole == 'shop' ? _isLocationVerified : null,
       ).timeout(
         const Duration(seconds: 35),
         onTimeout: () {
@@ -855,49 +990,146 @@ class _SignUpFormState extends State<_SignUpForm> {
           ),
           const SizedBox(height: 18),
           
-          // Address Field
-          TextFormField(
-            controller: _addressController,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: const Color(0xFFF7F8FA),
-              labelText: 'Shop Address *',
-              labelStyle: GoogleFonts.poppins(
-                color: Color(0xFF6B7280),
-                fontWeight: FontWeight.w500,
-                fontSize: 16,
+          // Address Field with Location Verification
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _addressController,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: const Color(0xFFF7F8FA),
+                  labelText: 'Shop Address *',
+                  labelStyle: GoogleFonts.poppins(
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                  ),
+                  prefixIcon: const Icon(Icons.location_on, color: Color(0xFF6B7280)),
+                  hintText: 'Enter your complete shop address',
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: _isLocationVerified ? const Color(0xFF4CAF50) : const Color(0xFFE5E7EB),
+                      width: _isLocationVerified ? 2 : 1,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFF2979FF), width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Colors.red),
+                  ),
+                ),
+                style: GoogleFonts.poppins(
+                  color: Color(0xFF232136),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                ),
+                maxLines: 3,
+                cursorColor: const Color(0xFF2979FF),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter shop address';
+                  }
+                  if (value.length < 10) {
+                    return 'Address must be at least 10 characters';
+                  }
+                  return null;
+                },
               ),
-              prefixIcon: const Icon(Icons.location_on, color: Color(0xFF6B7280)),
-              hintText: 'Enter your complete shop address',
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              const SizedBox(height: 12),
+              
+              // Location Verification Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isCapturingLocation ? null : _captureLocation,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isLocationVerified 
+                        ? const Color(0xFF4CAF50) 
+                        : const Color(0xFF2979FF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: _isCapturingLocation
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Icon(
+                          _isLocationVerified ? Icons.check_circle : Icons.my_location,
+                          size: 20,
+                        ),
+                  label: Text(
+                    _isCapturingLocation
+                        ? 'Capturing Location...'
+                        : _isLocationVerified
+                            ? 'Location Verified ✓'
+                            : 'Verify Location',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFF2979FF), width: 2),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Colors.red),
-              ),
-            ),
-            style: GoogleFonts.poppins(
-              color: Color(0xFF232136),
-              fontWeight: FontWeight.w500,
-              fontSize: 16,
-            ),
-            maxLines: 3,
-            cursorColor: const Color(0xFF2979FF),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter shop address';
-              }
-              if (value.length < 10) {
-                return 'Address must be at least 10 characters';
-              }
-              return null;
-            },
+              
+              // Location Status Display
+              if (_gpsAddress != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _isLocationVerified 
+                        ? const Color(0xFFE8F5E8) 
+                        : const Color(0xFFFFF3E0),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _isLocationVerified 
+                          ? const Color(0xFF4CAF50) 
+                          : const Color(0xFFFF9800),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isLocationVerified ? Icons.check_circle : Icons.warning,
+                        color: _isLocationVerified 
+                            ? const Color(0xFF4CAF50) 
+                            : const Color(0xFFFF9800),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _isLocationVerified 
+                              ? 'GPS Address matches entered address'
+                              : 'GPS Address: $_gpsAddress',
+                          style: GoogleFonts.poppins(
+                            color: _isLocationVerified 
+                                ? const Color(0xFF4CAF50) 
+                                : const Color(0xFFFF9800),
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 18),
           
@@ -1054,22 +1286,36 @@ class _SignUpFormState extends State<_SignUpForm> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFFF9800)),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.info_outline,
-                  color: const Color(0xFFFF9800),
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Your account will be marked as "Pending Verification" until we verify your license. This process typically takes 24-48 hours.',
-                    style: GoogleFonts.poppins(
+                Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
                       color: const Color(0xFFFF9800),
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
+                      size: 20,
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Verification Process',
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFFFF9800),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '• Your account will be marked as "Pending Verification" until we verify your license and location\n• License verification typically takes 24-48 hours\n• Location verification helps prevent fake registrations\n• Admin approval required before shop goes live',
+                  style: GoogleFonts.poppins(
+                    color: const Color(0xFFFF9800),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
                   ),
                 ),
               ],

@@ -42,6 +42,11 @@ dependencies:
   file_picker: ^8.0.0+1
   image_picker: ^1.0.7
   path: ^1.9.0
+  geolocator: ^10.1.0
+  geocoding: ^2.1.1
+  google_maps_flutter: ^2.5.0
+  permission_handler: ^11.0.1
+  flutter_native_splash: ^2.3.8
 
 dev_dependencies:
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -70,6 +75,7 @@ flutter:
     - assets/images/onboarding_deals.svg
     - assets/images/onboarding_analytics.svg
     - assets/images/onboarding_shopping.svg
+    - assets/map_styles/neutral.json
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 
@@ -98,3 +104,13 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Flutter Native Splash configuration
+flutter_native_splash:
+  color: "#F7F8FA"
+  color_dark: "#232136"
+  android_gravity: center
+  ios_content_mode: center
+  android_12:
+    icon_background_color: "#2979FF"
+    icon_background_color_dark: "#2979FF"

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/network_config.dart';
 import 'screens/auth_screen.dart';
 import 'screens/otp_verification_screen.dart';
 import 'screens/forgot_password_screen.dart';
@@ -9,14 +10,22 @@ import 'screens/verification_success_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/change_password_screen.dart';
 import 'screens/shop_owner_dashboard.dart';
+import 'screens/map_screen.dart';
+import 'screens/shop_details_screen.dart';
+import 'screens/notifications_screen.dart';
+import 'screens/shop_comparison_screen.dart';
 
 import 'package:google_fonts/google_fonts.dart';
-import 'screens/onboarding_screen.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'widgets/auth_wrapper.dart';
-import 'utils/onboarding_utils.dart';
-import 'services/network_utility.dart';
+import 'widgets/splash_screen.dart';
+import 'screens/onboarding_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  // Initialize network discovery so physical devices can reach your backend automatically
+  await NetworkConfig.initialize();
   runApp(const ShopRadarApp());
 }
 
@@ -30,66 +39,40 @@ class ShopRadarApp extends StatefulWidget {
 class _ShopRadarAppState extends State<ShopRadarApp> {
   bool _showOnboarding = false;
   bool _isInitializing = true;
+  bool _showSplashBeforeOnboarding = false;
 
   @override
   void initState() {
     super.initState();
-    _checkInitialState();
+    _initializeApp();
   }
 
-  Future<void> _checkInitialState() async {
-    debugPrint('Starting _checkInitialState');
-    try {
+  Future<void> _initializeApp() async {
+    debugPrint('🚀 Starting app initialization...');
+    
+    // Show splash screen for 3 seconds
+    await Future.delayed(const Duration(seconds: 3));
+    
+    debugPrint('✅ Initial splash screen duration complete');
+    
+    if (mounted) {
+      setState(() {
+        _showSplashBeforeOnboarding = true; // Show splash before onboarding
+        _isInitializing = false;
+      });
       
-      try {
-        await NetworkUtility.initialize().timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            debugPrint('Network initialization timed out, continuing with fallback');
-            return;
-          },
-        );
-        debugPrint('Network configuration initialized');
-      } catch (e) {
-        debugPrint('Network initialization failed, continuing with fallback: $e');
-      }
+      // Remove native splash screen
+      FlutterNativeSplash.remove();
       
-      // Add timeout to onboarding check
-      final onboardingCompleted = await OnboardingUtils.isOnboardingComplete().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          debugPrint('Onboarding check timed out, defaulting to show onboarding');
-          return false;
-        },
-      );
-      
-      final isFirstTime = await OnboardingUtils.isFirstTime().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          debugPrint('First time check timed out, defaulting to true');
-          return true;
-        },
-      );
-      
-      debugPrint('onboardingCompleted: $onboardingCompleted');
-      debugPrint('isFirstTime: $isFirstTime');
+      // Show splash screen before onboarding for 2 more seconds
+      await Future.delayed(const Duration(seconds: 2));
       
       if (mounted) {
         setState(() {
-        
-          _showOnboarding = true;
-          _isInitializing = false;
+          _showSplashBeforeOnboarding = false;
+          _showOnboarding = true; // Now show onboarding
         });
-      }
-      debugPrint('🎯 Final decision - _showOnboarding: $_showOnboarding');
-      debugPrint('🎯 onboardingCompleted value: $onboardingCompleted');
-    } catch (e) {
-      debugPrint('Error during initial state check: $e');
-      if (mounted) {
-        setState(() {
-          _showOnboarding = true; 
-          _isInitializing = false;
-        });
+        debugPrint('🎯 App ready! Showing onboarding');
       }
     }
   }
@@ -98,12 +81,15 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isInitializing) {
-      return const MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
+    debugPrint('🔍 Building app - _isInitializing: $_isInitializing, _showSplashBeforeOnboarding: $_showSplashBeforeOnboarding, _showOnboarding: $_showOnboarding');
+    
+    if (_isInitializing || _showSplashBeforeOnboarding) {
+      debugPrint('📱 Showing animated splash screen');
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: SplashScreen(
+          message: _isInitializing ? 'Initializing ShopRadar...' : 'Preparing your experience...',
+          duration: const Duration(seconds: 3),
         ),
       );
     }
@@ -128,13 +114,30 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
       ),
       home: _showOnboarding
           ? OnboardingScreen(onFinish: () async {
-              // Mark onboarding as complete
-              await OnboardingUtils.markOnboardingComplete();
+              debugPrint('🎯 Onboarding finished, showing splash before auth');
+              
+              // Show splash screen before going to auth
               setState(() {
                 _showOnboarding = false;
+                _showSplashBeforeOnboarding = true;
               });
+              
+              // Wait for splash screen duration
+              await Future.delayed(const Duration(seconds: 2));
+              
+              if (mounted) {
+                setState(() {
+                  _showSplashBeforeOnboarding = false;
+                });
+                debugPrint('🎯 Now showing auth screen');
+              }
             })
-          : const AuthWrapper(),
+          : Builder(
+              builder: (context) {
+                debugPrint('🎯 Showing AuthWrapper');
+                return const AuthWrapper();
+              },
+            ),
       routes: {
         '/auth': (context) => const AuthScreen(),
         '/otp-verification': (context) {
@@ -155,6 +158,22 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
         '/profile': (context) => const ProfileScreen(),
         '/change-password': (context) => const ChangePasswordScreen(),
         '/shop-owner-dashboard': (context) => const ShopOwnerDashboard(),
+        '/map': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+          return MapScreen(
+            searchQuery: args?['searchQuery'],
+            category: args?['category'],
+          );
+        },
+        '/shop-details': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+          return ShopDetailsScreen(shop: args?['shop']);
+        },
+        '/notifications': (context) => const NotificationsScreen(),
+        '/shop-comparison': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+          return ShopComparisonScreen(shops: args?['shops'] ?? []);
+        },
         '/stores': (context) => const Scaffold(
           body: Center(
             child: Column(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'loading_widget.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
@@ -106,9 +107,9 @@ class CustomButton extends StatelessWidget {
             ? const SizedBox(
                 height: 20,
                 width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                child: LoadingWidget(
+                  size: 20,
+                  color: Colors.white,
                 ),
               )
             : Text(
