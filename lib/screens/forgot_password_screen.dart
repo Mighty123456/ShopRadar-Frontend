@@ -74,6 +74,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -83,89 +84,87 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 40),
-                const Text(
-                  'Forgot Password?',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Enter your email address and we\'ll send you a verification code to reset your password.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                
-                CustomTextField(
-                  controller: _emailController,
-                  labelText: 'Email Address',
-                  hintText: 'Enter your email',
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
-                ),
-                
-                const SizedBox(height: 40),
-                
-                SizedBox(
-                  width: double.infinity,
-                  child: CustomButton(
-                    text: _isLoading ? 'Sending...' : 'Send Reset Code',
-                    onPressed: _isLoading ? null : _sendResetEmail,
-                    isLoading: _isLoading,
-                  ),
-                ),
-                
-                const Spacer(),
-                
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20.0),
-                  child: Center(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pushReplacementNamed('/auth');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        foregroundColor: Colors.blue,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(24, 24, 24, bottomInset + 24),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Forgot Password?',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
-                      child: const Text(
-                        'Back to Login',
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Enter your email address and we\'ll send you a verification code to reset your password.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    CustomTextField(
+                      controller: _emailController,
+                      labelText: 'Email Address',
+                      hintText: 'Enter your email',
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your email';
+                        }
+                        if (!RegExp(r'^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$').hasMatch(value)) {
+                          return 'Please enter a valid email';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      child: CustomButton(
+                        text: _isLoading ? 'Sending...' : 'Send Reset Code',
+                        onPressed: _isLoading ? null : _sendResetEmail,
+                        isLoading: _isLoading,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Center(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pushReplacementNamed('/auth');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.blue,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        ),
+                        child: const Text(
+                          'Back to Login',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

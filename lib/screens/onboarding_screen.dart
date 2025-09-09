@@ -144,9 +144,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                   final step = _steps[index];
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
                         FadeTransition(
                           opacity: _fadeAnimation,
                           child: SlideTransition(
@@ -177,7 +179,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                           ),
                         ),
                         
-                        const SizedBox(height: 48),
+                        const SizedBox(height: 32),
                         
                         FadeTransition(
                           opacity: _fadeAnimation,
@@ -196,7 +198,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                           ),
                         ),
                         
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         
                         FadeTransition(
                           opacity: _fadeAnimation,
@@ -213,8 +215,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                             ),
                           ),
                         ),
+                        const SizedBox(height: 12),
                       ],
                     ),
+                  ),
                   );
                 },
               ),

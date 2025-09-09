@@ -53,6 +53,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           Positioned.fill(
@@ -80,6 +81,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 double horizontalPadding = constraints.maxWidth < 600 ? 16.0 : (constraints.maxWidth - maxWidth) / 2;
                 return Center(
                   child: SingleChildScrollView(
+                    padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 16),
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 32.0),
                       child: ConstrainedBox(
@@ -921,6 +923,7 @@ class _SignUpFormState extends State<_SignUpForm> {
                 fontSize: 16,
               ),
               dropdownColor: Colors.white,
+              isExpanded: true,
               items: _states.map((String state) {
                 return DropdownMenuItem<String>(
                   value: state,
