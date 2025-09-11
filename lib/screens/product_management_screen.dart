@@ -409,15 +409,18 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
             color: Colors.white,
             child: Row(
               children: [
-                const Text(
-                  'Product Management',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                Expanded(
+                  child: Text(
+                    'Product Management',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 CustomButton(
                   text: 'Add Product',
                   onPressed: _addNewProduct,
@@ -585,33 +588,43 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
             ),
             child: Row(
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.inventory, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Stock: ${product['stock']}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(Icons.inventory, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          'Stock: ${product['stock']}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 8),
                 
-                Row(
-                  children: [
-                    Icon(Icons.category, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      product['category'],
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(Icons.category, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          product['category'],
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 
                 const Spacer(),

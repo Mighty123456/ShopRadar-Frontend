@@ -82,6 +82,7 @@ class _LoadingWidgetState extends State<LoadingWidget>
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Animated loading indicator
             AnimatedBuilder(
@@ -152,6 +153,7 @@ class _LoadingWidgetState extends State<LoadingWidget>
             // Dots animation
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: List.generate(3, (index) {
                 return AnimatedBuilder(
                   animation: _pulseController,

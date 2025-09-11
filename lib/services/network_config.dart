@@ -10,9 +10,12 @@ class NetworkConfig {
   static String? _currentEnvironment;
   
   static Map<String, String> baseUrls = {
-    emulator: 'https://shopradarbackend.onrender.com',
-    physicalDevice: 'https://shopradarbackend.onrender.com',
-    simulator: 'https://shopradarbackend.onrender.com',
+    // Use local IP for emulator (faster for development)
+    emulator: 'http://192.168.31.169:3000',
+    // Use local IP for physical devices during development
+    physicalDevice: 'http://192.168.31.169:3000',
+    // Use local IP for simulator (faster for development)
+    simulator: 'http://192.168.31.169:3000',
   };
   
   static const List<String> networkPatterns = [

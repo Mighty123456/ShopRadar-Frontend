@@ -95,14 +95,16 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Text(
-                  'Comparison Results',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Comparison Results',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.of(context).pop(),
@@ -453,14 +455,16 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      'Selected Shops (${_selectedShops.length}/3)',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: Text(
+                        'Selected Shops (${_selectedShops.length}/3)',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Spacer(),
                     if (_selectedShops.length < 3)
                       TextButton.icon(
                         onPressed: () {

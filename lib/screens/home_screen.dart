@@ -888,41 +888,64 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 
-                // Store details - Flexible height row
+                // Store details - Responsive row with proper overflow handling
                 Row(
                   children: [
-                    Icon(Icons.star, size: isLargeTablet ? 20 : (isTablet ? 18 : 16), color: Colors.amber),
-                    SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                    Text(
-                      '${store['rating']}',
-                      style: TextStyle(
-                        fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(width: isLargeTablet ? 24 : (isTablet ? 20 : 16)),
-                    Icon(Icons.location_on, size: isLargeTablet ? 20 : (isTablet ? 18 : 16), color: Colors.grey[600]),
-                    SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                    Expanded(
-                      child: Text(
-                        store['distance'] as String,
-                        style: TextStyle(
-                          fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                          color: Colors.grey[600],
+                    // Rating section
+                    Row(
+                      children: [
+                        Icon(Icons.star, size: isLargeTablet ? 20 : (isTablet ? 18 : 16), color: Colors.amber),
+                        SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                        Text(
+                          '${store['rating']}',
+                          style: TextStyle(
+                            fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
+                      ],
+                    ),
+                    SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+                    
+                    // Distance section
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(Icons.location_on, size: isLargeTablet ? 20 : (isTablet ? 18 : 16), color: Colors.grey[600]),
+                          SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                          Flexible(
+                            child: Text(
+                              store['distance'] as String,
+                              style: TextStyle(
+                                fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
+                                color: Colors.grey[600],
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    SizedBox(width: isLargeTablet ? 24 : (isTablet ? 20 : 16)),
-                    Icon(Icons.local_offer, size: isLargeTablet ? 20 : (isTablet ? 18 : 16), color: Colors.orange),
-                    SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                    Text(
-                      '${store['offers']} offers',
-                      style: TextStyle(
-                        fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                        color: Colors.orange,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    
+                    SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+                    
+                    // Offers section
+                    Row(
+                      children: [
+                        Icon(Icons.local_offer, size: isLargeTablet ? 20 : (isTablet ? 18 : 16), color: Colors.orange),
+                        SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                        Flexible(
+                          child: Text(
+                            '${store['offers']} offers',
+                            style: TextStyle(
+                              fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
+                              color: Colors.orange,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

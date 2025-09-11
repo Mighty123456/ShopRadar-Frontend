@@ -577,15 +577,18 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
             color: Colors.white,
             child: Row(
               children: [
-                const Text(
-                  'Offer Management',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                Expanded(
+                  child: Text(
+                    'Offer Management',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 CustomButton(
                   text: 'Create Offer',
                   onPressed: _addNewOffer,
@@ -750,24 +753,37 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${offer['startDate'].day}/${offer['startDate'].month} - ${offer['endDate'].day}/${offer['endDate'].month}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              '${offer['startDate'].day}/${offer['startDate'].month} - ${offer['endDate'].day}/${offer['endDate'].month}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(),
-                    Icon(Icons.people, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${offer['currentUses']}/${offer['maxUses']}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
+                    const SizedBox(width: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.people, size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${offer['currentUses']}/${offer['maxUses']}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -809,7 +825,7 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                     ),
                   ),
                 
-                const Spacer(),
+                if (isExpired) const SizedBox(width: 8),
                 
                 Row(
                   children: [

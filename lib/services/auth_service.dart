@@ -3,12 +3,61 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'api_service.dart';
 import '../models/user_model.dart';
 
 class AuthService {
   static const String _tokenKey = 'token';
   static const String _userKey = 'user';
+
+  // Upload license file to backend
+  static Future<Map<String, dynamic>> _uploadLicenseFile(File file) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiService.baseUrl}/api/upload/public?folder=shop-docs'),
+      );
+      
+      // Add file to request
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          file.path,
+          filename: file.path.split('/').last,
+        ),
+      );
+      
+      // Add headers
+      request.headers.addAll({
+        'Content-Type': 'multipart/form-data',
+      });
+      
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'url': data['url'],
+          'publicId': data['publicId'],
+        };
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Upload failed',
+        };
+      }
+    } catch (e) {
+      debugPrint('File upload error: $e');
+      return {
+        'success': false,
+        'message': 'Upload error: $e',
+      };
+    }
+  }
 
 
 
@@ -31,6 +80,22 @@ class AuthService {
     try {
       debugPrint('Starting registration for email: $email');
       
+      // Upload license file first if provided
+      String? licenseDocumentUrl;
+      if (role == 'shop' && licenseFile != null) {
+        debugPrint('Uploading license file...');
+        final uploadResult = await _uploadLicenseFile(licenseFile);
+        if (uploadResult['success']) {
+          licenseDocumentUrl = uploadResult['url'];
+          debugPrint('License file uploaded successfully: $licenseDocumentUrl');
+        } else {
+          return {
+            'success': false,
+            'message': 'Failed to upload license file: ${uploadResult['message']}',
+          };
+        }
+      }
+      
       debugPrint('Sending registration request...');
       // Prepare registration data
       final Map<String, dynamic> registrationData = {
@@ -45,10 +110,14 @@ class AuthService {
         registrationData.addAll({
           'shopName': shopName,
           'licenseNumber': licenseNumber,
-          'state': state,
           'phone': phone,
           'address': address,
         });
+        
+        // Add license document URL if uploaded
+        if (licenseDocumentUrl != null) {
+          registrationData['licenseDocumentUrl'] = licenseDocumentUrl;
+        }
         
         // Add location verification data
         if (location != null) {
@@ -59,13 +128,6 @@ class AuthService {
         }
         if (isLocationVerified != null) {
           registrationData['isLocationVerified'] = isLocationVerified;
-        }
-        
-        // Handle file upload if license file is provided
-        if (licenseFile != null) {
-          // For now, we'll send the file path
-          // In a real implementation, you'd want to handle multipart form data
-          registrationData['licenseFile'] = licenseFile.path;
         }
       }
       

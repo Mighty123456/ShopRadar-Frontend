@@ -189,14 +189,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   color: const Color(0xFF2979FF),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '$_unreadCount unread notification${_unreadCount > 1 ? 's' : ''}',
-                  style: const TextStyle(
-                    color: Color(0xFF2979FF),
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Text(
+                    '$_unreadCount unread notification${_unreadCount > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      color: Color(0xFF2979FF),
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 TextButton(
                   onPressed: _markAllAsRead,
                   child: const Text('Mark all as read'),
