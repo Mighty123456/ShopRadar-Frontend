@@ -15,11 +15,16 @@ class ProductManagementScreen extends StatefulWidget {
 class _ProductManagementScreenState extends State<ProductManagementScreen> {
   final _formKey = GlobalKey<FormState>();
   final _productNameController = TextEditingController();
+  final _brandController = TextEditingController();
+  final _modelController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _tagsController = TextEditingController();
   final _priceController = TextEditingController();
   final _stockController = TextEditingController();
   
   String _selectedCategory = 'Electronics';
+  String _selectedUnitType = 'Piece';
+  String _selectedAvailabilityStatus = 'In Stock';
   bool _isLoading = false;
   bool _isEditing = false;
   String? _editingProductId;
@@ -36,7 +41,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   @override
   void dispose() {
     _productNameController.dispose();
+    _brandController.dispose();
+    _modelController.dispose();
     _descriptionController.dispose();
+    _tagsController.dispose();
     _priceController.dispose();
     _stockController.dispose();
     super.dispose();
@@ -113,25 +121,151 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     });
   }
 
+  void _addOfferToExistingProduct() {
+    if (_products.isEmpty) {
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'No products available. Please add a product first.',
+        type: MessageType.warning,
+        title: 'No Products',
+      );
+      return;
+    }
+    
+    _showProductSelectionDialog();
+  }
+
+  void _showProductSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFF9800),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.local_offer,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Select Product for Offer',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.all(20),
+                  itemCount: _products.length,
+                  itemBuilder: (context, index) {
+                    final product = _products[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.inventory,
+                          color: Colors.blue,
+                        ),
+                        title: Text(
+                          product['name'],
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text('${product['category']} - ₹${product['price']}'),
+                        trailing: const Icon(Icons.arrow_forward_ios),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          _navigateToOfferScreen(product);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToOfferScreen(Map<String, dynamic> product) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => UnifiedProductOfferScreen(selectedProduct: product),
+      ),
+    ).then((_) {
+      _loadProducts();
+    });
+  }
+
   void _editProduct(Map<String, dynamic> product) {
     setState(() {
       _isEditing = true;
       _editingProductId = product['id'];
       _productNameController.text = product['name'] ?? '';
+      _brandController.text = product['brand'] ?? '';
+      _modelController.text = product['model'] ?? '';
       _descriptionController.text = product['description'] ?? '';
+      _tagsController.text = product['tags'] ?? '';
       _priceController.text = (product['price'] ?? 0).toString();
       _stockController.text = (product['stock'] ?? 0).toString();
       _selectedCategory = product['category'] ?? 'Electronics';
+      _selectedUnitType = product['unitType'] ?? 'Piece';
+      _selectedAvailabilityStatus = product['availabilityStatus'] ?? 'In Stock';
     });
     _showProductDialog();
   }
 
   void _clearForm() {
     _productNameController.clear();
+    _brandController.clear();
+    _modelController.clear();
     _descriptionController.clear();
+    _tagsController.clear();
     _priceController.clear();
     _stockController.clear();
     _selectedCategory = 'Electronics';
+    _selectedUnitType = 'Piece';
+    _selectedAvailabilityStatus = 'In Stock';
   }
 
   void _showProductDialog() {
@@ -184,7 +318,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                         CustomTextField(
                           controller: _productNameController,
                           labelText: 'Product Name',
-                          hintText: 'Enter product name',
+                          hintText: 'e.g., Headphone, Rice Bag, Shirt',
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter product name';
@@ -194,10 +328,37 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                         ),
                         const SizedBox(height: 16),
                         
+                        Row(
+                          children: [
+                            Expanded(
+                              child: CustomTextField(
+                                controller: _brandController,
+                                labelText: 'Brand',
+                                hintText: 'e.g., Sony, Boat, Samsung',
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter brand';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: CustomTextField(
+                                controller: _modelController,
+                                labelText: 'Model / Variant',
+                                hintText: 'e.g., Boat T800, iPhone 15 Pro',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        
                         CustomTextField(
                           controller: _descriptionController,
                           labelText: 'Description',
-                          hintText: 'Enter product description',
+                          hintText: 'Short details (e.g., "Noise-cancelling wireless headphones, 30 hrs battery")',
                           maxLines: 3,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
@@ -205,6 +366,13 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                             }
                             return null;
                           },
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        CustomTextField(
+                          controller: _tagsController,
+                          labelText: 'Tags / Keywords',
+                          hintText: 'e.g., "wireless, headphones, bluetooth, Sony"',
                         ),
                         const SizedBox(height: 16),
                         
@@ -260,7 +428,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                             Expanded(
                               child: CustomTextField(
                                 controller: _priceController,
-                                labelText: 'Price (\$)',
+                                labelText: 'Original Price (₹)',
                                 hintText: '0.00',
                                 keyboardType: TextInputType.number,
                                 validator: (value) {
@@ -278,18 +446,108 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                             Expanded(
                               child: CustomTextField(
                                 controller: _stockController,
-                                labelText: 'Stock',
-                                hintText: '0',
+                                labelText: 'Stock Quantity',
+                                hintText: 'e.g., 10, 50, 100',
                                 keyboardType: TextInputType.number,
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
-                                    return 'Please enter stock';
+                                    return 'Please enter stock quantity';
                                   }
                                   if (int.tryParse(value) == null) {
-                                    return 'Please enter valid stock';
+                                    return 'Please enter valid quantity';
                                   }
                                   return null;
                                 },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Unit Type and Availability Status
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Unit Type',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: _selectedUnitType,
+                                        isExpanded: true,
+                                        hint: const Text('Select unit type'),
+                                        items: const [
+                                          DropdownMenuItem(value: 'Piece', child: Text('Piece')),
+                                          DropdownMenuItem(value: 'Kg', child: Text('Kg')),
+                                          DropdownMenuItem(value: 'Liter', child: Text('Liter')),
+                                          DropdownMenuItem(value: 'Pack', child: Text('Pack')),
+                                          DropdownMenuItem(value: 'Box', child: Text('Box')),
+                                          DropdownMenuItem(value: 'Set', child: Text('Set')),
+                                        ],
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _selectedUnitType = value!;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Availability Status',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: _selectedAvailabilityStatus,
+                                        isExpanded: true,
+                                        hint: const Text('Select status'),
+                                        items: const [
+                                          DropdownMenuItem(value: 'In Stock', child: Text('In Stock')),
+                                          DropdownMenuItem(value: 'Out of Stock', child: Text('Out of Stock')),
+                                        ],
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _selectedAvailabilityStatus = value!;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -343,10 +601,15 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         final result = await ShopService.updateMyProduct(
           productId: _editingProductId!,
           name: _productNameController.text.trim(),
+          brand: _brandController.text.trim(),
+          model: _modelController.text.trim(),
           description: _descriptionController.text.trim(),
+          tags: _tagsController.text.trim(),
           category: _selectedCategory,
           price: double.parse(_priceController.text),
           stock: int.parse(_stockController.text),
+          unitType: _selectedUnitType,
+          availabilityStatus: _selectedAvailabilityStatus,
         );
 
         if (result['success'] == true) {
@@ -377,10 +640,15 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         // Create new product using the unified endpoint
         final productData = {
           'name': _productNameController.text.trim(),
+          'brand': _brandController.text.trim(),
+          'model': _modelController.text.trim(),
           'description': _descriptionController.text.trim(),
+          'tags': _tagsController.text.trim(),
           'category': _selectedCategory,
           'price': double.parse(_priceController.text),
           'stock': int.parse(_stockController.text),
+          'unitType': _selectedUnitType,
+          'availabilityStatus': _selectedAvailabilityStatus,
         };
 
         final result = await ShopService.createProductWithOffer(
@@ -403,12 +671,30 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
           }
         } else {
           if (mounted) {
-            MessageHelper.showAnimatedMessage(
-              context,
-              message: result['message'] ?? 'Failed to add product',
-              type: MessageType.error,
-              title: 'Add Failed',
-            );
+            // Check if the error is due to no shop being registered
+            final message = result['message'] ?? 'Failed to add product';
+            if (message.contains('No shop found') || message.contains('shop not found')) {
+              MessageHelper.showAnimatedMessage(
+                context,
+                message: 'No shop found. Please register your shop first.',
+                type: MessageType.warning,
+                title: 'Shop Registration Required',
+              );
+            } else if (message.contains('verification') || message.contains('approved')) {
+              MessageHelper.showAnimatedMessage(
+                context,
+                message: 'Your shop needs to be verified before adding products.',
+                type: MessageType.warning,
+                title: 'Shop Verification Required',
+              );
+            } else {
+              MessageHelper.showAnimatedMessage(
+                context,
+                message: message,
+                type: MessageType.error,
+                title: 'Add Failed',
+              );
+            }
           }
         }
       }
@@ -472,6 +758,19 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   }
 
   void _deleteProduct(String productId) {
+    print('Delete button clicked for product ID: $productId');
+    
+    // Validate product ID
+    if (productId == null || productId.isEmpty) {
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'Invalid product ID. Cannot delete product.',
+        type: MessageType.error,
+        title: 'Invalid Product',
+      );
+      return;
+    }
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -479,11 +778,15 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         content: const Text('Are you sure you want to delete this product? This action cannot be undone.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              print('Delete cancelled');
+              Navigator.of(context).pop();
+            },
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
+              print('Delete confirmed for product ID: $productId');
               Navigator.of(context).pop();
               _performDelete(productId);
             },
@@ -496,8 +799,15 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   }
 
   Future<void> _performDelete(String productId) async {
+    setState(() {
+      _isLoading = true;
+    });
+    
     try {
+      print('Attempting to delete product with ID: $productId');
       final result = await ShopService.deleteMyProduct(productId);
+      
+      print('Delete result: $result');
       
       if (!mounted) return;
       
@@ -519,6 +829,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         );
       }
     } catch (e) {
+      print('Delete error: $e');
       if (!mounted) return;
       
       MessageHelper.showAnimatedMessage(
@@ -527,6 +838,12 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         type: MessageType.error,
         title: 'Delete Error',
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -576,6 +893,18 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                           text: 'Add Product + Offer',
                           onPressed: _addProductWithOffer,
                           backgroundColor: const Color(0xFF4CAF50),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: isTablet ? 12 : 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CustomButton(
+                          text: 'Add Offer to Existing Product',
+                          onPressed: _addOfferToExistingProduct,
+                          backgroundColor: const Color(0xFFFF9800),
                         ),
                       ),
                     ],
@@ -732,13 +1061,38 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       SizedBox(height: isTablet ? 12 : 8),
-                      Text(
-                        '\$${product['price'].toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: isTablet ? 22 : 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF2979FF),
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            '₹${product['price'].toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: isTablet ? 22 : 18,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF2979FF),
+                            ),
+                          ),
+                          if (product['brand'] != null && product['brand'].isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isTablet ? 8 : 6,
+                                vertical: isTablet ? 4 : 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(isTablet ? 8 : 6),
+                              ),
+                              child: Text(
+                                product['brand'],
+                                style: TextStyle(
+                                  fontSize: isTablet ? 12 : 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
@@ -772,7 +1126,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                       SizedBox(width: isTablet ? 6 : 4),
                       Flexible(
                         child: Text(
-                          'Stock: ${product['stock']}',
+                          'Stock: ${product['stock']} ${product['unitType'] ?? 'Piece'}',
                           style: TextStyle(
                             fontSize: isTablet ? 16 : 14,
                             color: Colors.grey[600],
@@ -807,6 +1161,31 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                     ],
                   ),
                 ),
+                SizedBox(width: isTablet ? 12 : 8),
+                
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        product['availabilityStatus'] == 'In Stock' ? Icons.check_circle : Icons.cancel,
+                        size: isTablet ? 20 : 16, 
+                        color: product['availabilityStatus'] == 'In Stock' ? Colors.green : Colors.red
+                      ),
+                      SizedBox(width: isTablet ? 6 : 4),
+                      Flexible(
+                        child: Text(
+                          product['availabilityStatus'] ?? 'In Stock',
+                          style: TextStyle(
+                            fontSize: isTablet ? 16 : 14,
+                            color: product['availabilityStatus'] == 'In Stock' ? Colors.green : Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 
                 const Spacer(),
                 
@@ -831,13 +1210,13 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                       tooltip: 'Edit',
                     ),
                     IconButton(
-                      onPressed: () => _deleteProduct(product['id']),
+                      onPressed: _isLoading ? null : () => _deleteProduct(product['id']),
                       icon: Icon(
                         Icons.delete, 
-                        color: Colors.red,
+                        color: _isLoading ? Colors.grey : Colors.red,
                         size: isTablet ? 24 : 20,
                       ),
-                      tooltip: 'Delete',
+                      tooltip: _isLoading ? 'Deleting...' : 'Delete',
                     ),
                   ],
                 ),

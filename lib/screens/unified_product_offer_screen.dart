@@ -7,7 +7,9 @@ import '../widgets/animated_message_dialog.dart';
 import '../services/shop_service.dart';
 
 class UnifiedProductOfferScreen extends StatefulWidget {
-  const UnifiedProductOfferScreen({super.key});
+  final Map<String, dynamic>? selectedProduct;
+  
+  const UnifiedProductOfferScreen({super.key, this.selectedProduct});
 
   @override
   State<UnifiedProductOfferScreen> createState() => _UnifiedProductOfferScreenState();
@@ -16,7 +18,10 @@ class UnifiedProductOfferScreen extends StatefulWidget {
 class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
   final _formKey = GlobalKey<FormState>();
   final _productNameController = TextEditingController();
+  final _brandController = TextEditingController();
+  final _modelController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _tagsController = TextEditingController();
   final _priceController = TextEditingController();
   final _stockController = TextEditingController();
   final _offerTitleController = TextEditingController();
@@ -25,13 +30,18 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
   final _maxUsesController = TextEditingController();
   
   String _selectedCategory = 'Electronics';
+  String _selectedUnitType = 'Piece';
+  String _selectedAvailabilityStatus = 'In Stock';
   String _selectedDiscountType = 'Percentage';
   DateTime _offerStartDate = DateTime.now();
   DateTime _offerEndDate = DateTime.now().add(const Duration(days: 7));
   bool _isLoading = false;
   bool _hasOffer = false;
+  bool _isEditingExisting = false;
   File? _productImage;
   String? _productImageName;
+  File? _productVideo;
+  String? _productVideoName;
 
   final List<String> _categories = [
     'Electronics',
@@ -47,9 +57,22 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.selectedProduct != null) {
+      _isEditingExisting = true;
+      _hasOffer = true; // If editing existing product, assume we're adding an offer
+      _populateExistingProduct();
+    }
+  }
+
+  @override
   void dispose() {
     _productNameController.dispose();
+    _brandController.dispose();
+    _modelController.dispose();
     _descriptionController.dispose();
+    _tagsController.dispose();
     _priceController.dispose();
     _stockController.dispose();
     _offerTitleController.dispose();
@@ -57,6 +80,68 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
     _discountController.dispose();
     _maxUsesController.dispose();
     super.dispose();
+  }
+
+  void _populateExistingProduct() {
+    final product = widget.selectedProduct!;
+    _productNameController.text = product['name'] ?? '';
+    _brandController.text = product['brand'] ?? '';
+    _modelController.text = product['model'] ?? '';
+    _descriptionController.text = product['description'] ?? '';
+    _tagsController.text = product['tags'] ?? '';
+    _priceController.text = (product['price'] ?? 0).toString();
+    _stockController.text = (product['stock'] ?? 0).toString();
+    _selectedCategory = product['category'] ?? 'Electronics';
+    _selectedUnitType = product['unitType'] ?? 'Piece';
+    _selectedAvailabilityStatus = product['availabilityStatus'] ?? 'In Stock';
+  }
+
+  double _calculateFinalPrice() {
+    try {
+      final originalPrice = double.parse(_priceController.text);
+      final discountValue = double.parse(_discountController.text);
+      
+      if (_selectedDiscountType == 'Percentage') {
+        return originalPrice - (originalPrice * discountValue / 100);
+      } else {
+        return originalPrice - discountValue;
+      }
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  String _getOfferStatusText() {
+    final now = DateTime.now();
+    if (_offerStartDate.isAfter(now)) {
+      return 'Upcoming';
+    } else if (_offerEndDate.isBefore(now)) {
+      return 'Expired';
+    } else {
+      return 'Active';
+    }
+  }
+
+  Color _getOfferStatusColor() {
+    final now = DateTime.now();
+    if (_offerStartDate.isAfter(now)) {
+      return Colors.orange;
+    } else if (_offerEndDate.isBefore(now)) {
+      return Colors.red;
+    } else {
+      return Colors.green;
+    }
+  }
+
+  IconData _getOfferStatusIcon() {
+    final now = DateTime.now();
+    if (_offerStartDate.isAfter(now)) {
+      return Icons.schedule;
+    } else if (_offerEndDate.isBefore(now)) {
+      return Icons.cancel;
+    } else {
+      return Icons.check_circle;
+    }
   }
 
   Future<void> _pickProductImage() async {
@@ -82,6 +167,34 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
           message: 'Error picking image: $e',
           type: MessageType.error,
           title: 'Image Error',
+        );
+      }
+    }
+  }
+
+  Future<void> _pickProductVideo() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.video,
+        allowMultiple: false,
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        if (file.path != null) {
+          setState(() {
+            _productVideo = File(file.path!);
+            _productVideoName = file.name;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error picking video: $e',
+          type: MessageType.error,
+          title: 'Video Error',
         );
       }
     }
@@ -131,11 +244,17 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
       // Prepare product data
       final productData = {
         'name': _productNameController.text.trim(),
+        'brand': _brandController.text.trim(),
+        'model': _modelController.text.trim(),
         'description': _descriptionController.text.trim(),
+        'tags': _tagsController.text.trim(),
         'category': _selectedCategory,
         'price': double.parse(_priceController.text),
         'stock': int.parse(_stockController.text),
+        'unitType': _selectedUnitType,
+        'availabilityStatus': _selectedAvailabilityStatus,
         'image': _productImage,
+        'video': _productVideo,
       };
 
       // Prepare offer data if offer is enabled
@@ -213,7 +332,7 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
         elevation: 0,
         toolbarHeight: isTablet ? 70 : (isLargeScreen ? 80 : 56),
         title: Text(
-          'Add Product',
+          _isEditingExisting ? 'Add Offer to Product' : 'Add Product',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -247,7 +366,7 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
               CustomTextField(
                 controller: _productNameController,
                 labelText: 'Product Name',
-                hintText: 'Enter product name',
+                hintText: 'e.g., Headphone, Rice Bag, Shirt',
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter product name';
@@ -257,10 +376,37 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
               ),
               const SizedBox(height: 16),
               
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _brandController,
+                      labelText: 'Brand',
+                      hintText: 'e.g., Sony, Boat, Samsung',
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter brand';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _modelController,
+                      labelText: 'Model / Variant',
+                      hintText: 'e.g., Boat T800, iPhone 15 Pro',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
               CustomTextField(
                 controller: _descriptionController,
                 labelText: 'Description',
-                hintText: 'Enter product description',
+                hintText: 'Short details (e.g., "Noise-cancelling wireless headphones, 30 hrs battery")',
                 maxLines: 3,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -268,6 +414,13 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 16),
+              
+              CustomTextField(
+                controller: _tagsController,
+                labelText: 'Tags / Keywords',
+                hintText: 'e.g., "wireless, headphones, bluetooth, Sony"',
               ),
               const SizedBox(height: 16),
               
@@ -314,7 +467,7 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                   Expanded(
                     child: CustomTextField(
                       controller: _priceController,
-                      labelText: 'Price (₹)',
+                      labelText: 'Original Price (₹)',
                       hintText: '0.00',
                       keyboardType: TextInputType.number,
                       validator: (value) {
@@ -333,7 +486,7 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                     child: CustomTextField(
                       controller: _stockController,
                       labelText: 'Stock Quantity',
-                      hintText: '0',
+                      hintText: 'e.g., 10, 50, 100',
                       keyboardType: TextInputType.number,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -350,17 +503,127 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
               ),
               const SizedBox(height: 16),
               
+              // Unit Type and Availability Status
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Unit Type',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedUnitType,
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'Piece', child: Text('Piece')),
+                            DropdownMenuItem(value: 'Kg', child: Text('Kg')),
+                            DropdownMenuItem(value: 'Liter', child: Text('Liter')),
+                            DropdownMenuItem(value: 'Pack', child: Text('Pack')),
+                            DropdownMenuItem(value: 'Box', child: Text('Box')),
+                            DropdownMenuItem(value: 'Set', child: Text('Set')),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedUnitType = value!;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Availability Status',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedAvailabilityStatus,
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'In Stock', child: Text('In Stock')),
+                            DropdownMenuItem(value: 'Out of Stock', child: Text('Out of Stock')),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedAvailabilityStatus = value!;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Media Section
+              _buildSectionHeader(
+                'Media (Optional)',
+                Icons.perm_media,
+                const Color(0xFF9C27B0),
+              ),
+              SizedBox(height: isTablet ? 20 : 16),
+              
               // Product Image
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Product Image',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
+                  Row(
+                    children: [
+                      const Text(
+                        'Product Image',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Optional',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
@@ -417,6 +680,97 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                   ],
                 ],
               ),
+              const SizedBox(height: 16),
+              
+              // Product Video
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Product Video',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Optional',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: _pickProductVideo,
+                    child: Container(
+                      width: double.infinity,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 2,
+                          style: BorderStyle.solid,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white,
+                      ),
+                      child: _productVideo != null
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.videocam,
+                                  size: 40,
+                                  color: Colors.blue[400],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _productVideoName!,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.video_call,
+                                  size: 40,
+                                  color: Colors.grey.shade400,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Tap to add product video',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 32),
               
               // Offer Section Toggle
@@ -441,7 +795,9 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Add discount offer for this product',
+                      _isEditingExisting 
+                        ? 'Add discount offer to this product'
+                        : 'Add discount offer for this product',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -458,7 +814,7 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                 CustomTextField(
                   controller: _offerTitleController,
                   labelText: 'Offer Title',
-                  hintText: 'e.g., Summer Sale, New Customer Discount',
+                  hintText: 'e.g., Festive Sale, Weekend Deal, Back to School Offer',
                   validator: (value) {
                     if (_hasOffer && (value == null || value.isEmpty)) {
                       return 'Please enter offer title';
@@ -471,7 +827,7 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                 CustomTextField(
                   controller: _offerDescriptionController,
                   labelText: 'Offer Description',
-                  hintText: 'Describe the offer details',
+                  hintText: 'e.g., "Flat 15% off on Sony WH-1000XM5"',
                   maxLines: 2,
                   validator: (value) {
                     if (_hasOffer && (value == null || value.isEmpty)) {
@@ -533,7 +889,7 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                       child: CustomTextField(
                         controller: _discountController,
                         labelText: _selectedDiscountType == 'Percentage' ? 'Discount (%)' : 'Discount (₹)',
-                        hintText: _selectedDiscountType == 'Percentage' ? '10' : '50',
+                        hintText: _selectedDiscountType == 'Percentage' ? '15' : '2000',
                         keyboardType: TextInputType.number,
                         validator: (value) {
                           if (_hasOffer && (value == null || value.isEmpty)) {
@@ -544,10 +900,57 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                           }
                           return null;
                         },
+                        onChanged: (value) {
+                          setState(() {}); // Trigger rebuild to update final price
+                        },
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                
+                // Final Price Display
+                if (_hasOffer && _priceController.text.isNotEmpty && _discountController.text.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calculate, color: Colors.green[600]),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Final Price (Auto-calculated)',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '₹${_calculateFinalPrice().toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 const SizedBox(height: 16),
                 
                 // Offer Dates
@@ -640,6 +1043,50 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                 ),
                 const SizedBox(height: 16),
                 
+                // Offer Status
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _getOfferStatusColor().withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _getOfferStatusColor().withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _getOfferStatusIcon(),
+                        color: _getOfferStatusColor(),
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Offer Status',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _getOfferStatusText(),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: _getOfferStatusColor(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
                 CustomTextField(
                   controller: _maxUsesController,
                   labelText: 'Maximum Uses',
@@ -662,7 +1109,9 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
               
               // Save Button
               CustomButton(
-                text: _hasOffer ? 'Create Product with Offer' : 'Create Product',
+                text: _isEditingExisting 
+                  ? (_hasOffer ? 'Add Offer to Product' : 'Update Product')
+                  : (_hasOffer ? 'Create Product with Offer' : 'Create Product'),
                 onPressed: _isLoading ? null : _saveProductWithOffer,
                 isLoading: _isLoading,
               ),

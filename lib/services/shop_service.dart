@@ -269,10 +269,15 @@ class ShopService {
       final Map<String, dynamic> requestData = {
         'product': <String, dynamic>{
           'name': productData['name'],
+          'brand': productData['brand'],
+          'model': productData['model'],
           'description': productData['description'],
+          'tags': productData['tags'],
           'category': productData['category'],
           'price': productData['price'],
           'stock': productData['stock'],
+          'unitType': productData['unitType'],
+          'availabilityStatus': productData['availabilityStatus'],
         },
         'offer': offerData,
       };
@@ -402,10 +407,15 @@ class ShopService {
   static Future<Map<String, dynamic>> updateMyProduct({
     required String productId,
     String? name,
+    String? brand,
+    String? model,
     String? description,
+    String? tags,
     String? category,
     double? price,
     int? stock,
+    String? unitType,
+    String? availabilityStatus,
     String? status,
   }) async {
     try {
@@ -414,10 +424,15 @@ class ShopService {
       final Map<String, dynamic> updateData = {};
       
       if (name != null) updateData['name'] = name;
+      if (brand != null) updateData['brand'] = brand;
+      if (model != null) updateData['model'] = model;
       if (description != null) updateData['description'] = description;
+      if (tags != null) updateData['tags'] = tags;
       if (category != null) updateData['category'] = category;
       if (price != null) updateData['price'] = price;
       if (stock != null) updateData['stock'] = stock;
+      if (unitType != null) updateData['unitType'] = unitType;
+      if (availabilityStatus != null) updateData['availabilityStatus'] = availabilityStatus;
       if (status != null) updateData['status'] = status;
       
       final response = await ApiService.put('/api/shops/products/$productId', updateData).timeout(
@@ -457,25 +472,31 @@ class ShopService {
   static Future<Map<String, dynamic>> deleteMyProduct(String productId) async {
     try {
       debugPrint('Deleting product: $productId');
+      print('ShopService: Attempting to delete product with ID: $productId');
       
       final response = await ApiService.delete('/api/shops/products/$productId').timeout(
         const Duration(seconds: 30),
         onTimeout: () {
+          print('ShopService: Delete request timed out');
           throw TimeoutException('Request timed out', const Duration(seconds: 30));
         },
       );
 
       debugPrint('Delete product response status: ${response.statusCode}');
       debugPrint('Delete product response body: ${response.body}');
+      print('ShopService: Delete response status: ${response.statusCode}');
+      print('ShopService: Delete response body: ${response.body}');
 
       final data = jsonDecode(response.body);
       
       if (response.statusCode == 200) {
+        print('ShopService: Product deleted successfully');
         return {
           'success': true,
           'message': data['message'] ?? 'Product deleted successfully',
         };
       } else {
+        print('ShopService: Delete failed with status: ${response.statusCode}');
         return {
           'success': false,
           'message': data['message'] ?? 'Failed to delete product',
@@ -483,6 +504,7 @@ class ShopService {
       }
     } catch (e) {
       debugPrint('Delete product error: $e');
+      print('ShopService: Delete error: $e');
       return {
         'success': false,
         'message': 'Network error: ${e.toString()}',
