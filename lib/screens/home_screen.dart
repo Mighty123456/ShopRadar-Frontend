@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/animated_message_dialog.dart';
 import 'map_screen.dart';
-import 'notifications_screen.dart';
 import '../services/notification_service.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
@@ -108,74 +107,94 @@ class _HomeScreenState extends State<HomeScreen> {
     
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF2979FF),
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        toolbarHeight: isLargeTablet ? 80 : (isTablet ? 70 : 56),
-        title: Row(
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Column(
           children: [
-            Icon(Icons.radar, color: Colors.white, size: isLargeTablet ? 36 : (isTablet ? 32 : 28)),
-            SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+                // Header Section - Fixed height
+                Container(
+                  padding: EdgeInsets.all(isExtraLarge ? 24 : (isLarge ? 20 : (isMedium ? 16 : (isSmallScreen ? 12 : 16)))),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Top Row - Logo, Notifications, Profile
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Logo
+                          Row(
+                            children: [
+                              Container(
+                                width: isLargeTablet ? 48 : (isTablet ? 40 : 32),
+                                height: isLargeTablet ? 48 : (isTablet ? 40 : 32),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF2979FF), Color(0xFF2DD4BF)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+                                ),
+                                child: Icon(
+                                  Icons.radar,
+                                  color: Colors.white,
+                                  size: isLargeTablet ? 24 : (isTablet ? 20 : 16),
+                                ),
+                              ),
+                              SizedBox(width: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
             Text(
               'ShopRadar',
               style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
                 fontSize: isLargeTablet ? 28 : (isTablet ? 24 : 20),
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF1A1A1A),
               ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: Icon(_isMapView ? Icons.list : Icons.map, color: Colors.white),
-            onPressed: () {
-              if (_isMapView) {
-                setState(() {
-                  _isMapView = false;
-                });
-              } else {
-                // Navigate to full map screen
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => MapScreen(
-                      searchQuery: _searchController.text,
-                    ),
-                  ),
-                );
-              }
-            },
-          ),
+                          
+                          // Right side icons
+                          Row(
+                            children: [
+                              // Notifications
           Stack(
             children: [
               IconButton(
-                icon: Icon(Icons.notifications, color: Colors.white),
-                onPressed: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const NotificationsScreen(),
-                    ),
-                  );
-                  _loadNotificationCount(); // Refresh count when returning
-                },
+                                    onPressed: () {
+                                      Navigator.of(context).pushNamed('/notifications');
+                                    },
+                                    icon: Icon(
+                                      Icons.notifications_outlined,
+                                      size: isLargeTablet ? 28 : (isTablet ? 24 : 20),
+                                      color: const Color(0xFF6B7280),
+                                    ),
               ),
               if (_unreadNotifications > 0)
                 Positioned(
                   right: 8,
                   top: 8,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
                       color: Colors.red,
-                      shape: BoxShape.circle,
+                                          borderRadius: BorderRadius.circular(10),
                     ),
                     constraints: const BoxConstraints(
                       minWidth: 16,
                       minHeight: 16,
                     ),
                     child: Text(
-                      _unreadNotifications > 99 ? '99+' : _unreadNotifications.toString(),
+                                          '$_unreadNotifications',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
@@ -187,99 +206,151 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          if (_currentUser?.role == 'shop')
-            IconButton(
-              icon: Icon(Icons.store, color: Colors.white),
-              onPressed: () {
-                Navigator.of(context).pushNamed('/shop-owner-dashboard');
-              },
-              tooltip: 'Shop Owner Dashboard',
-            ),
-          IconButton(
-            icon: Icon(Icons.person, color: Colors.white),
-            onPressed: () {
+                              
+                              SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                              
+                              // Profile
+                              GestureDetector(
+                                onTap: () {
               Navigator.of(context).pushNamed('/profile');
             },
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Column(
-              children: [
-                // Search Section - Enhanced responsive design
-                Container(
-                  padding: EdgeInsets.all(isExtraLarge ? 40 : (isLarge ? 32 : (isMedium ? 24 : (isSmallScreen ? 16 : 20)))),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2979FF),
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(isExtraLarge ? 40 : (isLarge ? 32 : (isMedium ? 24 : (isSmallScreen ? 20 : 22)))),
-                      bottomRight: Radius.circular(isExtraLarge ? 40 : (isLarge ? 32 : (isMedium ? 24 : (isSmallScreen ? 20 : 22)))),
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+                                child: CircleAvatar(
+                                  radius: isLargeTablet ? 20 : (isTablet ? 18 : 16),
+                                  backgroundColor: const Color(0xFF2979FF),
+                                  child: Text(
+                                    _currentUser?.fullName?.isNotEmpty == true 
+                                        ? _currentUser!.fullName![0].toUpperCase()
+                                        : 'U',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      
+                      SizedBox(height: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+                      
                       // Search Bar
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : (isSmallScreen ? 20 : 22)))),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.08),
-                              blurRadius: isExtraLarge ? 20 : (isLarge ? 15 : (isMedium ? 12 : 10)),
-                              offset: Offset(0, isExtraLarge ? 10 : (isLarge ? 8 : (isMedium ? 6 : 5))),
-                            ),
-                          ],
+                          color: const Color(0xFFF3F4F6),
+                          borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
                         ),
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'Search products, stores, or categories...',
-                            prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+                            hintText: 'Search for products, stores, or deals...',
+                            hintStyle: TextStyle(
+                              color: const Color(0xFF9CA3AF),
+                              fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              color: const Color(0xFF6B7280),
+                              size: isLargeTablet ? 24 : (isTablet ? 20 : 18),
+                            ),
                             suffixIcon: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  icon: Icon(Icons.compare_arrows, color: Colors.grey[600]),
                                   onPressed: () {
-                                    _showComparisonDialog();
+                                    // Voice search functionality
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Voice search coming soon!')),
+                                    );
                                   },
-                                  tooltip: 'Compare shops',
+                                  icon: Icon(
+                                    Icons.mic,
+                                    color: const Color(0xFF6B7280),
+                                    size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
+                                  ),
                                 ),
                                 IconButton(
-                                  icon: Icon(Icons.filter_list, color: Colors.grey[600]),
                                   onPressed: () {
-                                    // TODO: Show filters
+                                    // Filter functionality
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Filter options coming soon!')),
+                                    );
                                   },
+                                  icon: Icon(
+                                    Icons.tune,
+                                    color: const Color(0xFF6B7280),
+                                    size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
+                                  ),
                                 ),
                               ],
                             ),
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.symmetric(
-                              horizontal: isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : (isSmallScreen ? 20 : 22))), 
-                              vertical: isExtraLarge ? 26 : (isLarge ? 22 : (isMedium ? 18 : (isSmallScreen ? 15 : 17)))
+                              horizontal: isLargeTablet ? 20 : (isTablet ? 16 : 12),
+                              vertical: isLargeTablet ? 16 : (isTablet ? 14 : 12),
                             ),
                           ),
+                          onSubmitted: (value) {
+                            if (value.isNotEmpty) {
+                              Navigator.of(context).pushNamed('/search-results', arguments: {'query': value});
+                            }
+                          },
                         ),
                       ),
-                      SizedBox(height: isExtraLarge ? 28 : (isLarge ? 24 : (isMedium ? 20 : (isSmallScreen ? 16 : 18)))),
+                      
+                      SizedBox(height: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
                       
                       // Quick Categories
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _buildQuickCategory('All', Icons.all_inclusive, true, isSmallScreen, isMedium, isLarge, isExtraLarge),
-                            _buildQuickCategory('Electronics', Icons.phone_android, false, isSmallScreen, isMedium, isLarge, isExtraLarge),
-                            _buildQuickCategory('Fashion', Icons.checkroom, false, isSmallScreen, isMedium, isLarge, isExtraLarge),
-                            _buildQuickCategory('Food', Icons.restaurant, false, isSmallScreen, isMedium, isLarge, isExtraLarge),
-                            _buildQuickCategory('Home', Icons.home, false, isSmallScreen, isMedium, isLarge, isExtraLarge),
-                            _buildQuickCategory('Sports', Icons.sports_soccer, false, isSmallScreen, isMedium, isLarge, isExtraLarge),
+                            _buildQuickCategory('Electronics', Icons.devices, false, isSmallScreen, isMedium, isLarge, isExtraLarge, isTablet, isLargeTablet),
+                            SizedBox(width: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+                            _buildQuickCategory('Fashion', Icons.checkroom, false, isSmallScreen, isMedium, isLarge, isExtraLarge, isTablet, isLargeTablet),
+                            SizedBox(width: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+                            _buildQuickCategory('Food', Icons.restaurant, false, isSmallScreen, isMedium, isLarge, isExtraLarge, isTablet, isLargeTablet),
+                            SizedBox(width: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+                            _buildQuickCategory('Health', Icons.health_and_safety, false, isSmallScreen, isMedium, isLarge, isExtraLarge, isTablet, isLargeTablet),
+                            SizedBox(width: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+                            _buildQuickCategory('Sports', Icons.sports, false, isSmallScreen, isMedium, isLarge, isExtraLarge, isTablet, isLargeTablet),
                           ],
                         ),
+                      ),
+                      
+                      SizedBox(height: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+                      
+                      // Action Buttons Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionButton(
+                              'Map View',
+                              Icons.map,
+                              const Color(0xFF2979FF),
+                              () {
+                                setState(() {
+                                  _isMapView = !_isMapView;
+                                });
+                              },
+                              isTablet,
+                              isLargeTablet,
+                            ),
+                          ),
+                          SizedBox(width: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+                          Expanded(
+                            child: _buildActionButton(
+                              'Compare',
+                              Icons.compare,
+                              const Color(0xFF2DD4BF),
+                              _showComparisonDialog,
+                              isTablet,
+                              isLargeTablet,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -287,7 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 
                 // Main Content - Flexible and responsive
                 Expanded(
-                  child: _isMapView ? _buildMapView(isSmallScreen, isMedium, isLarge, isExtraLarge, isTablet, isLargeTablet, isLandscape, isPhoneLandscape) : _buildListView(isSmallScreen, isMedium, isLarge, isExtraLarge, isTablet, isLargeTablet, isLandscape, isPhoneLandscape),
+                  child: _isMapView ? _buildMapView(isSmallScreen, isMedium, isLarge, isExtraLarge, isTablet, isLargeTablet, isLandscape, isPhoneLandscape) : _buildListView(isSmallScreen, isMedium, isLarge, isExtraLarge, isTablet, isLargeTablet, isLandscape, isPhoneLandscape, constraints.maxHeight),
                 ),
               ],
             );
@@ -349,867 +420,606 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildQuickCategory(String title, IconData icon, bool isSelected, bool isSmallScreen, bool isMedium, bool isLarge, bool isExtraLarge) {
-    return Container(
-      margin: EdgeInsets.only(right: isExtraLarge ? 20 : (isLarge ? 18 : (isMedium ? 16 : (isSmallScreen ? 12 : 14)))),
+  Widget _buildQuickCategory(String title, IconData icon, bool isSelected, bool isSmallScreen, bool isMedium, bool isLarge, bool isExtraLarge, bool isTablet, bool isLargeTablet) {
+    return GestureDetector(
+      onTap: () {
+        // Handle category selection
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Searching for $title...')),
+        );
+      },
+      child: Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isExtraLarge ? 28 : (isLarge ? 24 : (isMedium ? 20 : (isSmallScreen ? 16 : 18))), 
-        vertical: isExtraLarge ? 18 : (isLarge ? 16 : (isMedium ? 12 : (isSmallScreen ? 8 : 10)))
+          horizontal: isLargeTablet ? 20 : (isTablet ? 16 : 12),
+          vertical: isLargeTablet ? 12 : (isTablet ? 10 : 8),
       ),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(isExtraLarge ? 28 : (isLarge ? 24 : (isMedium ? 20 : (isSmallScreen ? 16 : 18)))),
-        border: isSelected ? Border.all(color: const Color(0xFF2979FF), width: isExtraLarge ? 3 : 2) : null,
-        boxShadow: isSelected ? [
-          BoxShadow(
-            color: const Color(0xFF2979FF).withValues(alpha: 0.2),
-            blurRadius: isExtraLarge ? 12 : 8,
-            offset: Offset(0, isExtraLarge ? 6 : 4),
+          color: isSelected ? const Color(0xFF2979FF) : Colors.white,
+          borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF2979FF) : const Color(0xFFE5E7EB),
+            width: 1,
           ),
-        ] : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             icon,
-            size: isExtraLarge ? 26 : (isLarge ? 22 : (isMedium ? 20 : (isSmallScreen ? 16 : 18))),
-            color: isSelected ? const Color(0xFF2979FF) : Colors.white,
+              color: isSelected ? Colors.white : const Color(0xFF6B7280),
+              size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
           ),
-          SizedBox(width: isExtraLarge ? 12 : (isLarge ? 10 : (isMedium ? 8 : (isSmallScreen ? 6 : 7)))),
+            SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
           Text(
             title,
             style: TextStyle(
-              color: isSelected ? const Color(0xFF2979FF) : Colors.white,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              fontSize: isExtraLarge ? 18 : (isLarge ? 16 : (isMedium ? 14 : (isSmallScreen ? 12 : 13))),
+                color: isSelected ? Colors.white : const Color(0xFF374151),
+                fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
+                fontWeight: FontWeight.w500,
             ),
           ),
         ],
+        ),
       ),
     );
   }
 
-  Widget _buildListView(bool isSmallScreen, bool isMedium, bool isLarge, bool isExtraLarge, bool isTablet, bool isLargeTablet, bool isLandscape, bool isPhoneLandscape) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          padding: EdgeInsets.all(isExtraLarge ? 40 : (isLarge ? 32 : (isMedium ? 24 : (isSmallScreen ? 16 : 20)))),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: constraints.maxHeight,
+  Widget _buildActionButton(String title, IconData icon, Color color, VoidCallback onTap, bool isTablet, bool isLargeTablet) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          vertical: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: isLargeTablet ? 20 : (isTablet ? 18 : 16)),
+            SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+            Text(
+              title,
+              style: TextStyle(
+                color: color,
+                fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Featured Offers Section
-                _buildSectionHeader('Featured Offers', Icons.local_offer, Colors.orange, isTablet, isLargeTablet),
-                SizedBox(height: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-                Container(
-                  padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(isLargeTablet ? 24 : (isTablet ? 20 : 16)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 10,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: SizedBox(
-                    height: isLargeTablet ? 320 : (isTablet ? 280 : 240), // Increased height for better content display
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: 5,
-                      padding: EdgeInsets.symmetric(horizontal: 4),
-                      itemBuilder: (context, index) {
-                        return _buildFeaturedOfferCard(index, isSmallScreen, isTablet, isLargeTablet);
-                      },
-                    ),
-                  ),
-                ),
-                
-                SizedBox(height: isLargeTablet ? 32 : (isTablet ? 28 : 24)),
-                
-                // Nearby Stores Section
-                _buildSectionHeader('Nearby Stores', Icons.location_on, Colors.red, isTablet, isLargeTablet),
-                SizedBox(height: isLargeTablet ? 16 : (isTablet ? 14 : 12)),
-                _buildNearbyStoresList(isSmallScreen, isTablet, isLargeTablet),
-                
-                SizedBox(height: isLargeTablet ? 32 : (isTablet ? 28 : 24)),
-                
-                // Popular Categories Section
-                _buildSectionHeader('Popular Categories', Icons.category, Colors.purple, isTablet, isLargeTablet),
-                SizedBox(height: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-                Container(
-                  padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(isLargeTablet ? 24 : (isTablet ? 20 : 16)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 10,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: _buildCategoriesGrid(isSmallScreen, isTablet, isLandscape, isLargeTablet),
-                ),
-                
-                SizedBox(height: isLargeTablet ? 32 : (isTablet ? 28 : 24)),
-                
-                // Recent Searches Section
-                _buildSectionHeader('Recent Searches', Icons.history, Colors.blue, isTablet, isLargeTablet),
-                SizedBox(height: isLargeTablet ? 16 : (isTablet ? 14 : 12)),
-                _buildRecentSearchesList(isSmallScreen, isTablet, isLargeTablet),
-                
-                SizedBox(height: isLargeTablet ? 32 : (isTablet ? 28 : 24)),
-                
-                // AI Recommendations Section
-                _buildSectionHeader('AI Recommendations', Icons.psychology, Colors.green, isTablet, isLargeTablet),
-                SizedBox(height: isLargeTablet ? 16 : (isTablet ? 14 : 12)),
-                _buildAIRecommendationsList(isSmallScreen, isTablet, isLargeTablet),
-                
-                SizedBox(height: isLargeTablet ? 40 : (isTablet ? 36 : 32)),
-              ],
-            ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildMapView(bool isSmallScreen, bool isMedium, bool isLarge, bool isExtraLarge, bool isTablet, bool isLargeTablet, bool isLandscape, bool isPhoneLandscape) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Container(
-          padding: EdgeInsets.all(isExtraLarge ? 40 : (isLarge ? 32 : (isMedium ? 24 : (isSmallScreen ? 16 : 20)))),
-          child: Column(
-            children: [
-              // Map Placeholder - Use Flexible to prevent overflow
-              Flexible(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : (isSmallScreen ? 20 : 22)))),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.map, 
-                          size: isExtraLarge ? 96 : (isLarge ? 80 : (isMedium ? 72 : (isSmallScreen ? 64 : 68))), 
-                          color: Colors.grey[400]
-                        ),
-                        SizedBox(height: isExtraLarge ? 24 : (isLarge ? 20 : (isMedium ? 18 : (isSmallScreen ? 16 : 17)))),
-                        Text(
-                          'Interactive Map View',
-                          style: TextStyle(
-                            fontSize: isExtraLarge ? 26 : (isLarge ? 22 : (isMedium ? 20 : (isSmallScreen ? 18 : 19))),
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        SizedBox(height: isExtraLarge ? 16 : (isLarge ? 12 : (isMedium ? 10 : (isSmallScreen ? 8 : 9)))),
-                        Text(
-                          'Store locations will be displayed here',
-                          style: TextStyle(
-                            fontSize: isExtraLarge ? 18 : (isLarge ? 16 : (isMedium ? 15 : (isSmallScreen ? 14 : 15))),
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              
-              SizedBox(height: isExtraLarge ? 24 : (isLarge ? 20 : (isMedium ? 18 : (isSmallScreen ? 16 : 17)))),
-              
-              // Map Controls
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildMapControlButton('My Location', Icons.my_location, isSmallScreen, isMedium, isLarge, isExtraLarge),
-                  _buildMapControlButton('Filters', Icons.filter_list, isSmallScreen, isMedium, isLarge, isExtraLarge),
-                  _buildMapControlButton('Directions', Icons.directions, isSmallScreen, isMedium, isLarge, isExtraLarge),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMapControlButton(String label, IconData icon, bool isSmallScreen, bool isMedium, bool isLarge, bool isExtraLarge) {
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isExtraLarge ? 28 : (isLarge ? 24 : (isMedium ? 20 : (isSmallScreen ? 16 : 18))), 
-        vertical: isExtraLarge ? 20 : (isLarge ? 18 : (isMedium ? 16 : (isSmallScreen ? 12 : 14)))
-      ),
+      margin: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(isExtraLarge ? 40 : (isLarge ? 35 : (isMedium ? 30 : (isSmallScreen ? 25 : 28)))),
-        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: isExtraLarge ? 8 : 5,
-            offset: Offset(0, isExtraLarge ? 4 : 2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon, 
-            size: isExtraLarge ? 28 : (isLarge ? 24 : (isMedium ? 22 : (isSmallScreen ? 18 : 20))), 
-            color: const Color(0xFF2979FF)
-          ),
-          SizedBox(width: isExtraLarge ? 12 : (isLarge ? 10 : (isMedium ? 8 : (isSmallScreen ? 6 : 7)))),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: isExtraLarge ? 18 : (isLarge ? 16 : (isMedium ? 15 : (isSmallScreen ? 12 : 14))),
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF2979FF),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+        child: const MapScreen(),
+      ),
+    );
+  }
+
+  Widget _buildListView(bool isSmallScreen, bool isMedium, bool isLarge, bool isExtraLarge, bool isTablet, bool isLargeTablet, bool isLandscape, bool isPhoneLandscape, double availableHeight) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isExtraLarge ? 40 : (isLarge ? 32 : (isMedium ? 24 : (isSmallScreen ? 16 : 20)))),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Featured Offers Section
+            _buildSectionHeader('Featured Offers', Icons.local_offer, Colors.orange, isTablet, isLargeTablet),
+            SizedBox(height: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+            Container(
+              padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(isLargeTablet ? 24 : (isTablet ? 20 : 16)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                height: isLargeTablet ? 320 : (isTablet ? 280 : 240), // Increased height for better content display
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: 5,
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  itemBuilder: (context, index) {
+                    return _buildFeaturedOfferCard(index, isSmallScreen, isTablet, isLargeTablet);
+                  },
+                ),
+              ),
             ),
-          ),
+            
+            SizedBox(height: isLargeTablet ? 32 : (isTablet ? 28 : 24)),
+            
+            // Nearby Stores Section
+            _buildSectionHeader('Nearby Stores', Icons.location_on, Colors.red, isTablet, isLargeTablet),
+            SizedBox(height: isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+            _buildNearbyStoresList(isSmallScreen, isTablet, isLargeTablet),
+            
+            SizedBox(height: isLargeTablet ? 32 : (isTablet ? 28 : 24)),
+            
+            // Popular Categories Section
+            _buildSectionHeader('Popular Categories', Icons.category, Colors.purple, isTablet, isLargeTablet),
+            SizedBox(height: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+            Container(
+              padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(isLargeTablet ? 24 : (isTablet ? 20 : 16)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: _buildCategoriesGrid(isSmallScreen, isTablet, isLandscape, isLargeTablet),
+            ),
+            
+            SizedBox(height: isLargeTablet ? 32 : (isTablet ? 28 : 24)),
+            
+            // Recent Searches Section
+            _buildSectionHeader('Recent Searches', Icons.history, Colors.blue, isTablet, isLargeTablet),
+            SizedBox(height: isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+            _buildRecentSearchesList(isSmallScreen, isTablet, isLargeTablet),
+            
+            SizedBox(height: isLargeTablet ? 32 : (isTablet ? 28 : 24)),
+            
+            // AI Recommendations Section
+            _buildSectionHeader('AI Recommendations', Icons.psychology, Colors.green, isTablet, isLargeTablet),
+            SizedBox(height: isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+            _buildAIRecommendationsList(isSmallScreen, isTablet, isLargeTablet),
+            
+            SizedBox(height: isLargeTablet ? 32 : (isTablet ? 28 : 24)),
         ],
       ),
     );
   }
 
   Widget _buildSectionHeader(String title, IconData icon, Color color, bool isTablet, bool isLargeTablet) {
-    return Container(
-      margin: EdgeInsets.only(bottom: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-      child: Row(
+    return Row(
         children: [
           Container(
-            padding: EdgeInsets.all(isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+          padding: EdgeInsets.all(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-              border: Border.all(
-                color: color.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: Icon(icon, color: color, size: isLargeTablet ? 28 : (isTablet ? 24 : 20)),
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
           ),
-          SizedBox(width: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-          Expanded(
-            child: Text(
+          child: Icon(
+            icon,
+            color: color,
+            size: isLargeTablet ? 24 : (isTablet ? 20 : 18),
+          ),
+        ),
+        SizedBox(width: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+        Text(
               title,
               style: TextStyle(
-                fontSize: isLargeTablet ? 26 : (isTablet ? 22 : 18),
+            fontSize: isLargeTablet ? 24 : (isTablet ? 20 : 18),
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF2979FF).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-              border: Border.all(
-                color: const Color(0xFF2979FF).withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: TextButton(
-              onPressed: () {
-                // TODO: Navigate to see all
-              },
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isLargeTablet ? 20 : (isTablet ? 16 : 12),
-                  vertical: isLargeTablet ? 12 : (isTablet ? 8 : 6),
-                ),
-              ),
-              child: Text(
-                'See All',
-                style: TextStyle(
-                  color: const Color(0xFF2979FF),
-                  fontWeight: FontWeight.w600,
-                  fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
-                ),
-              ),
+            color: const Color(0xFF1A1A1A),
             ),
           ),
         ],
-      ),
     );
   }
 
   Widget _buildFeaturedOfferCard(int index, bool isSmallScreen, bool isTablet, bool isLargeTablet) {
     final offers = [
-      {'title': '50% Off Electronics', 'store': 'TechMart', 'rating': 4.5, 'distance': '0.5km', 'discount': '50%'},
-      {'title': 'Buy 2 Get 1 Free', 'store': 'FashionHub', 'rating': 4.2, 'distance': '1.2km', 'discount': '33%'},
-      {'title': 'Weekend Sale', 'store': 'HomeStore', 'rating': 4.7, 'distance': '0.8km', 'discount': '25%'},
-      {'title': 'Student Discount', 'store': 'BookWorld', 'rating': 4.3, 'distance': '1.5km', 'discount': '20%'},
-      {'title': 'Flash Sale', 'store': 'SportsZone', 'rating': 4.6, 'distance': '2.1km', 'discount': '40%'},
+      {'title': '50% Off Electronics', 'subtitle': 'Limited Time', 'color': Colors.orange},
+      {'title': 'Buy 2 Get 1 Free', 'subtitle': 'Fashion Week', 'color': Colors.pink},
+      {'title': 'Free Delivery', 'subtitle': 'On Orders \$50+', 'color': Colors.green},
+      {'title': 'Flash Sale', 'subtitle': 'Ends Tonight', 'color': Colors.red},
+      {'title': 'New Arrivals', 'subtitle': 'Fresh Stock', 'color': Colors.blue},
     ];
     
-    final offer = offers[index];
-    final cardWidth = isLargeTablet ? 360 : (isTablet ? 320 : 280);
+    final offer = offers[index % offers.length];
     
     return Container(
-      width: cardWidth.toDouble(),
-      margin: EdgeInsets.only(right: isLargeTablet ? 24 : (isTablet ? 20 : 16)),
+      width: isLargeTablet ? 280 : (isTablet ? 240 : 200),
+      margin: EdgeInsets.only(right: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(isLargeTablet ? 24 : (isTablet ? 20 : 16)),
+        gradient: LinearGradient(
+          colors: [
+            offer['color'] as Color,
+            (offer['color'] as Color).withValues(alpha: 0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+                    borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 12,
-            offset: Offset(0, 6),
-            spreadRadius: 0,
-          ),
-        ],
-        border: Border.all(
-          color: Colors.grey.withValues(alpha: 0.1),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Offer Image Placeholder with Discount Badge
-          Stack(
-            children: [
-              Container(
-                height: isLargeTablet ? 160 : (isTablet ? 140 : 120),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(isLargeTablet ? 24 : (isTablet ? 20 : 16))),
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.local_offer, 
-                    size: isLargeTablet ? 60 : (isTablet ? 56 : 48), 
-                    color: Colors.orange
-                  ),
-                ),
-              ),
-              // Discount Badge
-              Positioned(
-                top: isLargeTablet ? 16 : (isTablet ? 12 : 8),
-                right: isLargeTablet ? 16 : (isTablet ? 12 : 8),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isLargeTablet ? 12 : (isTablet ? 8 : 6),
-                    vertical: isLargeTablet ? 6 : (isTablet ? 4 : 3),
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-                  ),
-                  child: Text(
-                    offer['discount'] as String,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
-                    ),
-                  ),
-                ),
+            color: (offer['color'] as Color).withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
               ),
             ],
           ),
-          
-          // Content Section - Flexible height with proper spacing
-          Expanded(
             child: Padding(
               padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Title
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                   Text(
                     offer['title'] as String,
                     style: TextStyle(
+                    color: Colors.white,
                       fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  
-                  SizedBox(height: isLargeTablet ? 12 : (isTablet ? 8 : 6)),
-                  
-                  // Store info
-                  Row(
-                    children: [
-                      Icon(Icons.store, size: isLargeTablet ? 18 : (isTablet ? 16 : 14), color: Colors.grey[600]),
-                      SizedBox(width: isLargeTablet ? 6 : (isTablet ? 4 : 3)),
-                      Expanded(
-                        child: Text(
-                          offer['store'] as String,
+                ),
+                SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                Text(
+                  offer['subtitle'] as String,
                           style: TextStyle(
-                            fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
-                            color: Colors.grey[600],
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
                         ),
                       ),
                     ],
                   ),
-                  
-                  SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                  
-                  // Rating and distance
                   Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(Icons.star, size: isLargeTablet ? 18 : (isTablet ? 16 : 14), color: Colors.amber),
-                      SizedBox(width: isLargeTablet ? 6 : (isTablet ? 4 : 3)),
                       Text(
-                        '${offer['rating']}',
+                  'Shop Now',
                         style: TextStyle(
-                          fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+                    color: Colors.white,
+                    fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-                      Icon(Icons.location_on, size: isLargeTablet ? 18 : (isTablet ? 16 : 14), color: Colors.grey[600]),
-                      SizedBox(width: isLargeTablet ? 6 : (isTablet ? 4 : 3)),
-                      Expanded(
-                        child: Text(
-                          offer['distance'] as String,
-                          style: TextStyle(
-                            fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
-                            color: Colors.grey[600],
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white,
+                  size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildNearbyStoresList(bool isSmallScreen, bool isTablet, bool isLargeTablet) {
     final stores = [
-      {'name': 'TechMart', 'category': 'Electronics', 'rating': 4.5, 'distance': '0.5km', 'offers': 3},
-      {'name': 'FashionHub', 'category': 'Fashion', 'rating': 4.2, 'distance': '1.2km', 'offers': 5},
-      {'name': 'HomeStore', 'category': 'Home & Garden', 'rating': 4.7, 'distance': '0.8km', 'offers': 2},
+      {'name': 'TechMart', 'distance': '0.5 km', 'rating': 4.5, 'category': 'Electronics'},
+      {'name': 'Fashion Hub', 'distance': '0.8 km', 'rating': 4.2, 'category': 'Fashion'},
+      {'name': 'Fresh Market', 'distance': '1.2 km', 'rating': 4.7, 'category': 'Grocery'},
+      {'name': 'Sports Zone', 'distance': '1.5 km', 'rating': 4.3, 'category': 'Sports'},
     ];
     
-    return Column(
-      children: stores.map((store) => _buildStoreCard(store, isSmallScreen, isTablet, isLargeTablet)).toList(),
-    );
-  }
-
-  Widget _buildStoreCard(Map<String, dynamic> store, bool isSmallScreen, bool isTablet, bool isLargeTablet) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: stores.length,
+      itemBuilder: (context, index) {
+        final store = stores[index];
     return Container(
-      margin: EdgeInsets.only(bottom: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-      padding: EdgeInsets.all(isLargeTablet ? 24 : (isTablet ? 20 : 16)),
+          margin: EdgeInsets.only(bottom: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+          padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+            borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 5,
-            offset: Offset(0, 2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Store Icon
           Container(
-            width: isLargeTablet ? 96 : (isTablet ? 80 : 60),
-            height: isLargeTablet ? 96 : (isTablet ? 80 : 60),
+                width: isLargeTablet ? 60 : (isTablet ? 50 : 40),
+                height: isLargeTablet ? 60 : (isTablet ? 50 : 40),
             decoration: BoxDecoration(
               color: const Color(0xFF2979FF).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+                  borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
             ),
             child: Icon(
               Icons.store,
               color: const Color(0xFF2979FF),
-              size: isLargeTablet ? 48 : (isTablet ? 40 : 30),
+                  size: isLargeTablet ? 24 : (isTablet ? 20 : 16),
             ),
           ),
-          
-          SizedBox(width: isLargeTablet ? 24 : (isTablet ? 20 : 16)),
-          
-          // Store Info - Flexible height for better responsiveness
+              SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Store name and category
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       store['name'] as String,
                       style: TextStyle(
-                        fontSize: isLargeTablet ? 24 : (isTablet ? 20 : 16),
+                        fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: const Color(0xFF1A1A1A),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                    SizedBox(height: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
                     Text(
                       store['category'] as String,
                       style: TextStyle(
-                        fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                        color: Colors.grey[600],
+                        fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
+                        color: const Color(0xFF6B7280),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-                
-                // Store details - Responsive row with proper overflow handling
+                    SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
                 Row(
                   children: [
-                    // Rating section
-                    Row(
-                      children: [
-                        Icon(Icons.star, size: isLargeTablet ? 20 : (isTablet ? 18 : 16), color: Colors.amber),
-                        SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                        Text(
-                          '${store['rating']}',
-                          style: TextStyle(
-                            fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                            fontWeight: FontWeight.w600,
-                          ),
+                        Icon(
+                          Icons.location_on,
+                          color: const Color(0xFF6B7280),
+                          size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
                         ),
-                      ],
-                    ),
-                    SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-                    
-                    // Distance section
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Icon(Icons.location_on, size: isLargeTablet ? 20 : (isTablet ? 18 : 16), color: Colors.grey[600]),
-                          SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                          Flexible(
-                            child: Text(
+                        SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
+                        Text(
                               store['distance'] as String,
                               style: TextStyle(
-                                fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                                color: Colors.grey[600],
+                            fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
+                            color: const Color(0xFF6B7280),
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
                     SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-                    
-                    // Offers section
-                    Row(
-                      children: [
-                        Icon(Icons.local_offer, size: isLargeTablet ? 20 : (isTablet ? 18 : 16), color: Colors.orange),
-                        SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                        Flexible(
-                          child: Text(
-                            '${store['offers']} offers',
+                        Icon(
+                          Icons.star,
+                          color: Colors.amber,
+                          size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+                        ),
+                        SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
+                        Text(
+                          store['rating'].toString(),
                             style: TextStyle(
-                              fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                              color: Colors.orange,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                            fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
+                            color: const Color(0xFF6B7280),
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          
-          // Action Buttons - Flexible height column
-          Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              IconButton(
-                icon: Icon(
-                  Icons.favorite_border, 
-                  color: Colors.grey[600],
-                  size: isLargeTablet ? 32 : (isTablet ? 28 : 24),
-                ),
-                onPressed: () {
-                  // TODO: Add to favorites
-                },
               ),
-              IconButton(
-                icon: Icon(
-                  Icons.directions, 
-                  color: const Color(0xFF2979FF),
-                  size: isLargeTablet ? 32 : (isTablet ? 28 : 24),
-                ),
-                onPressed: () {
-                  // TODO: Get directions
-                },
-              ),
-            ],
+              Icon(
+                Icons.arrow_forward_ios,
+                color: const Color(0xFF6B7280),
+                size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
           ),
         ],
       ),
+        );
+      },
     );
   }
 
   Widget _buildCategoriesGrid(bool isSmallScreen, bool isTablet, bool isLandscape, bool isLargeTablet) {
     final categories = [
-      {'name': 'Electronics', 'icon': Icons.phone_android, 'color': Colors.blue},
+      {'name': 'Electronics', 'icon': Icons.devices, 'color': Colors.blue},
       {'name': 'Fashion', 'icon': Icons.checkroom, 'color': Colors.pink},
       {'name': 'Food', 'icon': Icons.restaurant, 'color': Colors.orange},
-      {'name': 'Home', 'icon': Icons.home, 'color': Colors.green},
-      {'name': 'Sports', 'icon': Icons.sports_soccer, 'color': Colors.purple},
+      {'name': 'Health', 'icon': Icons.health_and_safety, 'color': Colors.green},
+      {'name': 'Sports', 'icon': Icons.sports, 'color': Colors.purple},
       {'name': 'Books', 'icon': Icons.book, 'color': Colors.brown},
-      {'name': 'Beauty', 'icon': Icons.face, 'color': Colors.red},
-      {'name': 'Automotive', 'icon': Icons.directions_car, 'color': Colors.grey},
+      {'name': 'Home', 'icon': Icons.home, 'color': Colors.teal},
+      {'name': 'Beauty', 'icon': Icons.face, 'color': Colors.indigo},
     ];
-    
-    // Improved responsive grid layout
-    int crossAxisCount;
-    if (isLargeTablet) {
-      crossAxisCount = isLandscape ? 6 : 4;
-    } else if (isTablet) {
-      crossAxisCount = isLandscape ? 4 : 3;
-    } else {
-      crossAxisCount = isLandscape ? 3 : 2;
-    }
     
     return GridView.builder(
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: isLargeTablet ? 20 : (isTablet ? 16 : 12),
-        mainAxisSpacing: isLargeTablet ? 20 : (isTablet ? 16 : 12),
-        childAspectRatio: isLargeTablet ? 1.1 : (isTablet ? 1.0 : 0.9),
+        crossAxisCount: isLargeTablet ? 4 : (isTablet ? 3 : 2),
+        crossAxisSpacing: isLargeTablet ? 16 : (isTablet ? 12 : 8),
+        mainAxisSpacing: isLargeTablet ? 16 : (isTablet ? 12 : 8),
+        childAspectRatio: isLargeTablet ? 1.2 : (isTablet ? 1.1 : 1.0),
       ),
       itemCount: categories.length,
       itemBuilder: (context, index) {
         final category = categories[index];
-        return _buildCategoryCard(category, isSmallScreen, isTablet, isLargeTablet);
-      },
-    );
-  }
-
-  Widget _buildCategoryCard(Map<String, dynamic> category, bool isSmallScreen, bool isTablet, bool isLargeTablet) {
-    return Container(
+        return GestureDetector(
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Browsing ${category['name']}...')),
+            );
+          },
+          child: Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-            spreadRadius: 0,
-          ),
-        ],
-        border: Border.all(
           color: (category['color'] as Color).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+              border: Border.all(
+                color: (category['color'] as Color).withValues(alpha: 0.2),
           width: 1,
         ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-            decoration: BoxDecoration(
-              color: (category['color'] as Color).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-            ),
-            child: Icon(
+                Icon(
               category['icon'] as IconData,
               color: category['color'] as Color,
-              size: isLargeTablet ? 48 : (isTablet ? 40 : 32),
-            ),
-          ),
-          SizedBox(height: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: isLargeTablet ? 12 : (isTablet ? 8 : 6)),
-            child: Text(
+                  size: isLargeTablet ? 32 : (isTablet ? 28 : 24),
+                ),
+                SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                Text(
               category['name'] as String,
               style: TextStyle(
-                fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+                    color: category['color'] as Color,
+                    fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
               ),
               textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-          SizedBox(height: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
         ],
+            ),
       ),
+        );
+      },
     );
   }
 
   Widget _buildRecentSearchesList(bool isSmallScreen, bool isTablet, bool isLargeTablet) {
     final searches = [
       'iPhone 15 Pro',
-      'Nike running shoes',
-      'Coffee shops near me',
-      'Gaming laptops',
-      'Organic groceries',
+      'Nike Air Max',
+      'Organic Vegetables',
+      'Gaming Laptop',
+      'Yoga Mat',
     ];
     
-    return Column(
-      children: searches.map((search) => _buildSearchItem(search, isSmallScreen, isTablet, isLargeTablet)).toList(),
-    );
-  }
-
-  Widget _buildSearchItem(String search, bool isSmallScreen, bool isTablet, bool isLargeTablet) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: searches.length,
+      itemBuilder: (context, index) {
     return Container(
-      margin: EdgeInsets.only(bottom: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+          margin: EdgeInsets.only(bottom: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
       padding: EdgeInsets.symmetric(
-        horizontal: isLargeTablet ? 24 : (isTablet ? 20 : 16), 
-        vertical: isLargeTablet ? 18 : (isTablet ? 16 : 12)
+            horizontal: isLargeTablet ? 16 : (isTablet ? 12 : 8),
+            vertical: isLargeTablet ? 12 : (isTablet ? 10 : 8),
       ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-        border: Border.all(color: Colors.grey[200]!),
+            borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Row(
         children: [
           Icon(
             Icons.history, 
-            size: isLargeTablet ? 28 : (isTablet ? 24 : 20), 
-            color: Colors.grey[600]
+                color: const Color(0xFF6B7280),
+                size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
           ),
-          SizedBox(width: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-          Expanded(
+              SizedBox(width: isLargeTablet ? 12 : (isTablet ? 8 : 6)),
+              Expanded(
             child: Text(
-              search,
+                  searches[index],
               style: TextStyle(
-                fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                color: Colors.black87,
+                    fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+                    color: const Color(0xFF374151),
               ),
             ),
           ),
-          IconButton(
-            icon: Icon(
-              Icons.search, 
-              size: isLargeTablet ? 28 : (isTablet ? 24 : 20), 
-              color: const Color(0xFF2979FF)
-            ),
-            onPressed: () {
-              // TODO: Perform search
-            },
+              Icon(
+                Icons.arrow_forward_ios,
+                color: const Color(0xFF6B7280),
+                size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
           ),
         ],
       ),
+        );
+      },
     );
   }
 
   Widget _buildAIRecommendationsList(bool isSmallScreen, bool isTablet, bool isLargeTablet) {
     final recommendations = [
-      {'title': 'Based on your location', 'description': 'Stores within 2km radius', 'icon': Icons.location_on},
-      {'title': 'Price comparison', 'description': 'Best deals for electronics', 'icon': Icons.compare_arrows},
-      {'title': 'Personalized picks', 'description': 'Based on your preferences', 'icon': Icons.psychology},
+      {'title': 'Based on your location', 'subtitle': 'TechMart - 50% off laptops', 'color': Colors.blue},
+      {'title': 'Trending in your area', 'subtitle': 'Fashion Hub - New arrivals', 'color': Colors.pink},
+      {'title': 'Personalized for you', 'subtitle': 'Fresh Market - Organic deals', 'color': Colors.green},
     ];
     
-    return Column(
-      children: recommendations.map((rec) => _buildRecommendationCard(rec, isSmallScreen, isTablet, isLargeTablet)).toList(),
-    );
-  }
-
-  Widget _buildRecommendationCard(Map<String, dynamic> rec, bool isSmallScreen, bool isTablet, bool isLargeTablet) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: recommendations.length,
+      itemBuilder: (context, index) {
+        final rec = recommendations[index];
     return Container(
-      margin: EdgeInsets.only(bottom: isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-      padding: EdgeInsets.all(isLargeTablet ? 24 : (isTablet ? 20 : 16)),
+          margin: EdgeInsets.only(bottom: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+          padding: EdgeInsets.all(isLargeTablet ? 16 : (isTablet ? 12 : 8)),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-        border: Border.all(color: Colors.grey[200]!),
+            borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+            border: Border.all(
+              color: (rec['color'] as Color).withValues(alpha: 0.2),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
       ),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+                width: isLargeTablet ? 40 : (isTablet ? 36 : 32),
+                height: isLargeTablet ? 40 : (isTablet ? 36 : 32),
             decoration: BoxDecoration(
-              color: const Color(0xFF2979FF).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+                  color: (rec['color'] as Color).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(isLargeTablet ? 8 : (isTablet ? 6 : 4)),
             ),
             child: Icon(
-              rec['icon'] as IconData,
-              color: const Color(0xFF2979FF),
-              size: isLargeTablet ? 32 : (isTablet ? 28 : 24),
-            ),
-          ),
-          
-          SizedBox(width: isLargeTablet ? 24 : (isTablet ? 20 : 16)),
-          
-          Expanded(
+                  Icons.psychology,
+                  color: rec['color'] as Color,
+                  size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
+                ),
+              ),
+              SizedBox(width: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+              Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  rec['title']!,
+                      rec['title'] as String,
                   style: TextStyle(
-                    fontSize: isLargeTablet ? 22 : (isTablet ? 18 : 16),
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                        fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    SizedBox(height: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
                 Text(
-                  rec['description']!,
+                      rec['subtitle'] as String,
                   style: TextStyle(
-                    fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                    color: Colors.grey[600],
+                        fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
+                        color: const Color(0xFF6B7280),
                   ),
                 ),
               ],
             ),
           ),
-          
-          IconButton(
-            icon: Icon(
+              Icon(
               Icons.arrow_forward_ios, 
-              color: Colors.grey[400],
-              size: isLargeTablet ? 28 : (isTablet ? 24 : 24),
-            ),
-            onPressed: () {
-              // TODO: Navigate to recommendations
-            },
+                color: const Color(0xFF6B7280),
+                size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
           ),
         ],
       ),
+        );
+      },
     );
   }
 } 

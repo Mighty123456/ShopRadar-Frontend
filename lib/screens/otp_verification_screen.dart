@@ -323,7 +323,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 ),
               ),
               
-              const Spacer(),
+              const SizedBox(height: 40),
               
               Center(
                 child: TextButton(

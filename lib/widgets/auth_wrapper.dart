@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/home_screen.dart';
 import '../screens/auth_screen.dart';
-import '../screens/shop_owner_dashboard.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
 
@@ -95,14 +94,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
             );
           }
           
-          final user = snapshot.data;
-          final isShopOwner = user?.role == 'shop';
-          
-          if (isShopOwner) {
-            return const ShopOwnerDashboard();
-          } else {
-            return const HomeScreen();
-          }
+          // Always show shopper interface by default
+          return const HomeScreen();
         },
       );
     } else {

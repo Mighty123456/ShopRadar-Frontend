@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/animated_message_dialog.dart';
+import '../services/shop_service.dart';
+import 'unified_product_offer_screen.dart';
 
 class ProductManagementScreen extends StatefulWidget {
   const ProductManagementScreen({super.key});
@@ -21,27 +23,15 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   bool _isLoading = false;
   bool _isEditing = false;
   String? _editingProductId;
+  bool _isLoadingProducts = false;
   
-  final List<Map<String, dynamic>> _products = [
-    {
-      'id': '1',
-      'name': 'Wireless Headphones',
-      'description': 'High-quality wireless headphones',
-      'price': 99.99,
-      'stock': 25,
-      'category': 'Electronics',
-      'isActive': true,
-    },
-    {
-      'id': '2',
-      'name': 'Smartphone Case',
-      'description': 'Durable protective case',
-      'price': 19.99,
-      'stock': 50,
-      'category': 'Electronics',
-      'isActive': true,
-    },
-  ];
+  List<Map<String, dynamic>> _products = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
 
   @override
   void dispose() {
@@ -50,6 +40,57 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     _priceController.dispose();
     _stockController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoadingProducts = true;
+    });
+
+    try {
+      final result = await ShopService.getMyProducts();
+      
+      if (result['success'] == true) {
+        setState(() {
+          _products = List<Map<String, dynamic>>.from(result['products'] ?? []);
+        });
+      } else {
+        if (mounted) {
+          // Check if the error is due to no shop being registered
+          final message = result['message'] ?? 'Failed to load products';
+          if (message.contains('No shop found') || message.contains('shop not found')) {
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: 'No shop found. Please register your shop first.',
+              type: MessageType.warning,
+              title: 'Shop Registration Required',
+            );
+          } else {
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: message,
+              type: MessageType.error,
+              title: 'Load Failed',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error loading products: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Load Error',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingProducts = false;
+        });
+      }
+    }
   }
 
   void _addNewProduct() {
@@ -61,15 +102,26 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     _showProductDialog();
   }
 
+  void _addProductWithOffer() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const UnifiedProductOfferScreen(),
+      ),
+    ).then((_) {
+      // Refresh the product list when returning from the unified screen
+      _loadProducts();
+    });
+  }
+
   void _editProduct(Map<String, dynamic> product) {
     setState(() {
       _isEditing = true;
       _editingProductId = product['id'];
-      _productNameController.text = product['name'];
-      _descriptionController.text = product['description'];
-      _priceController.text = product['price'].toString();
-      _stockController.text = product['stock'].toString();
-      _selectedCategory = product['category'];
+      _productNameController.text = product['name'] ?? '';
+      _descriptionController.text = product['description'] ?? '';
+      _priceController.text = (product['price'] ?? 0).toString();
+      _stockController.text = (product['stock'] ?? 0).toString();
+      _selectedCategory = product['category'] ?? 'Electronics';
     });
     _showProductDialog();
   }
@@ -286,83 +338,137 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     });
 
     try {
-      await Future.delayed(const Duration(seconds: 1));
-      
-      final productData = {
-        'name': _productNameController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'category': _selectedCategory,
-        'price': double.parse(_priceController.text),
-        'stock': int.parse(_stockController.text),
-      };
+      if (_isEditing && _editingProductId != null) {
+        // Update existing product
+        final result = await ShopService.updateMyProduct(
+          productId: _editingProductId!,
+          name: _productNameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          category: _selectedCategory,
+          price: double.parse(_priceController.text),
+          stock: int.parse(_stockController.text),
+        );
 
-      if (_isEditing) {
-        final index = _products.indexWhere((p) => p['id'] == _editingProductId);
-        if (index != -1) {
-          setState(() {
-            _products[index]['name'] = productData['name'];
-            _products[index]['description'] = productData['description'];
-            _products[index]['category'] = productData['category'];
-            _products[index]['price'] = productData['price'];
-            _products[index]['stock'] = productData['stock'];
-          });
+        if (result['success'] == true) {
+          if (mounted) {
+            Navigator.of(context).pop();
+            _loadProducts(); // Refresh the product list
+            
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: 'Product updated successfully!',
+              type: MessageType.success,
+              title: 'Product Updated',
+            );
+            
+            _clearForm();
+          }
+        } else {
+          if (mounted) {
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: result['message'] ?? 'Failed to update product',
+              type: MessageType.error,
+              title: 'Update Failed',
+            );
+          }
         }
       } else {
-        final newProduct = {
-          'id': DateTime.now().millisecondsSinceEpoch.toString(),
-          'name': productData['name'],
-          'description': productData['description'],
-          'category': productData['category'],
-          'price': productData['price'],
-          'stock': productData['stock'],
-          'isActive': true,
+        // Create new product using the unified endpoint
+        final productData = {
+          'name': _productNameController.text.trim(),
+          'description': _descriptionController.text.trim(),
+          'category': _selectedCategory,
+          'price': double.parse(_priceController.text),
+          'stock': int.parse(_stockController.text),
         };
-        
-        setState(() {
-          _products.insert(0, newProduct);
-        });
-      }
 
-      if (mounted) {
-        Navigator.of(context).pop();
-        setState(() {
-          _isLoading = false;
-        });
-        
-        MessageHelper.showAnimatedMessage(
-          context,
-          message: _isEditing 
-            ? 'Product updated successfully!'
-            : 'Product added successfully!',
-          type: MessageType.success,
-          title: _isEditing ? 'Product Updated' : 'Product Added',
+        final result = await ShopService.createProductWithOffer(
+          productData: productData,
         );
-        
-        _clearForm();
+
+        if (result['success'] == true) {
+          if (mounted) {
+            Navigator.of(context).pop();
+            _loadProducts(); // Refresh the product list
+            
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: 'Product added successfully!',
+              type: MessageType.success,
+              title: 'Product Added',
+            );
+            
+            _clearForm();
+          }
+        } else {
+          if (mounted) {
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: result['message'] ?? 'Failed to add product',
+              type: MessageType.error,
+              title: 'Add Failed',
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error saving product: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Save Error',
+        );
+      }
+    } finally {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
-        
-        MessageHelper.showAnimatedMessage(
-          context,
-          message: 'Failed to save product. Please try again.',
-          type: MessageType.error,
-          title: 'Save Failed',
-        );
       }
     }
   }
 
-  void _toggleProductStatus(String productId) {
-    setState(() {
-      final index = _products.indexWhere((p) => p['id'] == productId);
-      if (index != -1) {
-        _products[index]['isActive'] = !_products[index]['isActive'];
+  Future<void> _toggleProductStatus(String productId) async {
+    try {
+      final product = _products.firstWhere((p) => p['id'] == productId);
+      final newStatus = product['status'] == 'active' ? 'removed' : 'active';
+      
+      final result = await ShopService.updateMyProduct(
+        productId: productId,
+        status: newStatus,
+      );
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        _loadProducts(); // Refresh the product list
+        
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Product ${newStatus == 'active' ? 'activated' : 'deactivated'} successfully!',
+          type: MessageType.success,
+          title: 'Status Updated',
+        );
+      } else {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: result['message'] ?? 'Failed to update product status',
+          type: MessageType.error,
+          title: 'Update Failed',
+        );
       }
-    });
+    } catch (e) {
+      if (!mounted) return;
+      
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'Error updating product status: ${e.toString()}',
+        type: MessageType.error,
+        title: 'Update Error',
+      );
+    }
   }
 
   void _deleteProduct(String productId) {
@@ -370,7 +476,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Product'),
-        content: const Text('Are you sure you want to delete this product?'),
+        content: const Text('Are you sure you want to delete this product? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -378,17 +484,8 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
           ),
           TextButton(
             onPressed: () {
-              setState(() {
-                _products.removeWhere((p) => p['id'] == productId);
-              });
               Navigator.of(context).pop();
-              
-              MessageHelper.showAnimatedMessage(
-                context,
-                message: 'Product deleted successfully!',
-                type: MessageType.success,
-                title: 'Product Deleted',
-              );
+              _performDelete(productId);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
@@ -398,101 +495,171 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     );
   }
 
+  Future<void> _performDelete(String productId) async {
+    try {
+      final result = await ShopService.deleteMyProduct(productId);
+      
+      if (!mounted) return;
+      
+      if (result['success'] == true) {
+        _loadProducts(); // Refresh the product list
+        
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Product deleted successfully!',
+          type: MessageType.success,
+          title: 'Product Deleted',
+        );
+      } else {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: result['message'] ?? 'Failed to delete product',
+          type: MessageType.error,
+          title: 'Delete Failed',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'Error deleting product: ${e.toString()}',
+        type: MessageType.error,
+        title: 'Delete Error',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.white,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Product Management',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.all(isTablet ? 24 : 16),
+              color: Colors.white,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Product Management',
+                          style: TextStyle(
+                            fontSize: isTablet ? 28 : 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                CustomButton(
-                  text: 'Add Product',
-                  onPressed: _addNewProduct,
-                ),
-              ],
+                  SizedBox(height: isTablet ? 16 : 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CustomButton(
+                          text: 'Add Product',
+                          onPressed: _addNewProduct,
+                          backgroundColor: const Color(0xFF2979FF),
+                        ),
+                      ),
+                      SizedBox(width: isTablet ? 16 : 12),
+                      Expanded(
+                        child: CustomButton(
+                          text: 'Add Product + Offer',
+                          onPressed: _addProductWithOffer,
+                          backgroundColor: const Color(0xFF4CAF50),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
           
           Expanded(
-            child: _products.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _products.length,
-                    itemBuilder: (context, index) {
-                      final product = _products[index];
-                      return _buildProductCard(product);
-                    },
-                  ),
+            child: _isLoadingProducts
+                ? const Center(child: CircularProgressIndicator())
+                : _products.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        padding: EdgeInsets.all(isTablet ? 24 : 16),
+                        itemCount: _products.length,
+                        itemBuilder: (context, index) {
+                          final product = _products[index];
+                          return _buildProductCard(product, screenSize);
+                        },
+                      ),
           ),
         ],
       ),
+    ),
     );
   }
 
   Widget _buildEmptyState() {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 80,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No products yet',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
+      child: Padding(
+        padding: EdgeInsets.all(isTablet ? 32 : 16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inventory_2_outlined,
+              size: isTablet ? 100 : 80,
+              color: Colors.grey[400],
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Start by adding your first product',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[500],
+            SizedBox(height: isTablet ? 24 : 16),
+            Text(
+              'No products yet',
+              style: TextStyle(
+                fontSize: isTablet ? 24 : 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[600],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          CustomButton(
-            text: 'Add First Product',
-            onPressed: _addNewProduct,
-          ),
-        ],
+            SizedBox(height: isTablet ? 12 : 8),
+            Text(
+              'Start by adding your first product',
+              style: TextStyle(
+                fontSize: isTablet ? 18 : 16,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: isTablet ? 32 : 24),
+            CustomButton(
+              text: 'Add First Product',
+              onPressed: _addNewProduct,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildProductCard(Map<String, dynamic> product) {
+  Widget _buildProductCard(Map<String, dynamic> product, Size screenSize) {
+    final isTablet = screenSize.width > 600;
+    
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: EdgeInsets.only(bottom: isTablet ? 20 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
+            blurRadius: isTablet ? 12 : 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -500,23 +667,23 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(isTablet ? 20 : 16),
             child: Row(
               children: [
                 Container(
-                  width: 80,
-                  height: 80,
+                  width: isTablet ? 100 : 80,
+                  height: isTablet ? 100 : 80,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
                     color: Colors.grey[200],
                   ),
                   child: Icon(
                     Icons.inventory,
-                    size: 40,
+                    size: isTablet ? 50 : 40,
                     color: Colors.grey[400],
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: isTablet ? 20 : 16),
                 
                 Expanded(
                   child: Column(
@@ -527,47 +694,50 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                           Expanded(
                             child: Text(
                               product['name'],
-                              style: const TextStyle(
-                                fontSize: 18,
+                              style: TextStyle(
+                                fontSize: isTablet ? 22 : 18,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isTablet ? 12 : 8, 
+                              vertical: isTablet ? 6 : 4
+                            ),
                             decoration: BoxDecoration(
-                              color: product['isActive'] ? Colors.green : Colors.red,
-                              borderRadius: BorderRadius.circular(12),
+                              color: product['status'] == 'active' ? Colors.green : Colors.red,
+                              borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
                             ),
                             child: Text(
-                              product['isActive'] ? 'Active' : 'Inactive',
-                              style: const TextStyle(
+                              product['status'] == 'active' ? 'Active' : 'Inactive',
+                              style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 12,
+                                fontSize: isTablet ? 14 : 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: isTablet ? 6 : 4),
                       Text(
                         product['description'],
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: isTablet ? 16 : 14,
                           color: Colors.grey[600],
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: isTablet ? 12 : 8),
                       Text(
                         '\$${product['price'].toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontSize: 18,
+                        style: TextStyle(
+                          fontSize: isTablet ? 22 : 18,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF2979FF),
+                          color: const Color(0xFF2979FF),
                         ),
                       ),
                     ],
@@ -578,12 +748,15 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
           ),
           
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 20 : 16, 
+              vertical: isTablet ? 16 : 12
+            ),
             decoration: BoxDecoration(
               color: Colors.grey[50],
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(12),
-                bottomRight: Radius.circular(12),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(isTablet ? 16 : 12),
+                bottomRight: Radius.circular(isTablet ? 16 : 12),
               ),
             ),
             child: Row(
@@ -591,13 +764,17 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                 Expanded(
                   child: Row(
                     children: [
-                      Icon(Icons.inventory, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.inventory, 
+                        size: isTablet ? 20 : 16, 
+                        color: Colors.grey[600]
+                      ),
+                      SizedBox(width: isTablet ? 6 : 4),
                       Flexible(
                         child: Text(
                           'Stock: ${product['stock']}',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: isTablet ? 16 : 14,
                             color: Colors.grey[600],
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -606,18 +783,22 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: isTablet ? 12 : 8),
                 
                 Expanded(
                   child: Row(
                     children: [
-                      Icon(Icons.category, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.category, 
+                        size: isTablet ? 20 : 16, 
+                        color: Colors.grey[600]
+                      ),
+                      SizedBox(width: isTablet ? 6 : 4),
                       Flexible(
                         child: Text(
                           product['category'],
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: isTablet ? 16 : 14,
                             color: Colors.grey[600],
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -634,19 +815,28 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                     IconButton(
                       onPressed: () => _toggleProductStatus(product['id']),
                       icon: Icon(
-                        product['isActive'] ? Icons.visibility_off : Icons.visibility,
-                        color: product['isActive'] ? Colors.orange : Colors.green,
+                        product['status'] == 'active' ? Icons.visibility_off : Icons.visibility,
+                        color: product['status'] == 'active' ? Colors.orange : Colors.green,
+                        size: isTablet ? 24 : 20,
                       ),
-                      tooltip: product['isActive'] ? 'Deactivate' : 'Activate',
+                      tooltip: product['status'] == 'active' ? 'Deactivate' : 'Activate',
                     ),
                     IconButton(
                       onPressed: () => _editProduct(product),
-                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      icon: Icon(
+                        Icons.edit, 
+                        color: Colors.blue,
+                        size: isTablet ? 24 : 20,
+                      ),
                       tooltip: 'Edit',
                     ),
                     IconButton(
                       onPressed: () => _deleteProduct(product['id']),
-                      icon: const Icon(Icons.delete, color: Colors.red),
+                      icon: Icon(
+                        Icons.delete, 
+                        color: Colors.red,
+                        size: isTablet ? 24 : 20,
+                      ),
                       tooltip: 'Delete',
                     ),
                   ],

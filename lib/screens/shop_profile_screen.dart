@@ -277,7 +277,7 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
                 _setDayOpen(day, value);
               });
             },
-            activeColor: Colors.green,
+            activeThumbColor: Colors.green,
           ),
           const SizedBox(width: 16),
           if (isOpen) ...[

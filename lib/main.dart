@@ -20,6 +20,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'widgets/auth_wrapper.dart';
 import 'widgets/splash_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/search_results_screen.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -164,6 +165,11 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
             searchQuery: args?['searchQuery'],
             category: args?['category'],
           );
+        },
+        '/search-results': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+          final String query = args?['query'] ?? '';
+          return SearchResultsScreen(query: query);
         },
         '/shop-details': (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;

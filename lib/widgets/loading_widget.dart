@@ -80,10 +80,11 @@ class _LoadingWidgetState extends State<LoadingWidget>
         ),
       ),
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
             // Animated loading indicator
             AnimatedBuilder(
               animation: _rotationAnimation,
@@ -151,36 +152,40 @@ class _LoadingWidgetState extends State<LoadingWidget>
             const SizedBox(height: 20),
             
             // Dots animation
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(3, (index) {
-                return AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    final delay = index * 0.2;
-                    final animationValue = (_pulseController.value + delay) % 1.0;
-                    final scale = 0.5 + (0.5 * (1 - (animationValue - 0.5).abs() * 2));
-                    
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Transform.scale(
-                        scale: scale,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: primaryColor,
-                            shape: BoxShape.circle,
+            SizedBox(
+              width: 40, // Fixed width to prevent overflow
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(3, (index) {
+                  return AnimatedBuilder(
+                    animation: _pulseController,
+                    builder: (context, child) {
+                      final delay = index * 0.2;
+                      final animationValue = (_pulseController.value + delay) % 1.0;
+                      final scale = 0.5 + (0.5 * (1 - (animationValue - 0.5).abs() * 2));
+                      
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2), // Reduced margin
+                        child: Transform.scale(
+                          scale: scale,
+                          child: Container(
+                            width: 6, // Reduced size
+                            height: 6, // Reduced size
+                            decoration: BoxDecoration(
+                              color: primaryColor,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  },
-                );
-              }),
+                      );
+                    },
+                  );
+                }),
+              ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -222,22 +227,24 @@ class LoadingOverlay extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const LoadingWidget(size: 40),
-                    if (message != null) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        message!,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const LoadingWidget(size: 40),
+                      if (message != null) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          message!,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

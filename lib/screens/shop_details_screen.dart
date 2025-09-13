@@ -45,12 +45,16 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    final isLargeScreen = screenSize.width > 900;
+    
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           // App bar with shop image
           SliverAppBar(
-            expandedHeight: 250,
+            expandedHeight: isTablet ? 300 : (isLargeScreen ? 350 : 250),
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
@@ -102,7 +106,10 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.favorite_border),
+                icon: Icon(
+                  Icons.favorite_border,
+                  size: isTablet ? 24 : 20,
+                ),
                 onPressed: () {
                   // TODO: Add to favorites
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -111,7 +118,10 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.share),
+                icon: Icon(
+                  Icons.share,
+                  size: isTablet ? 24 : 20,
+                ),
                 onPressed: () {
                   // TODO: Share shop
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -125,7 +135,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
           // Shop info section
           SliverToBoxAdapter(
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(isTablet ? 24 : 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -135,8 +145,8 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                       Expanded(
                         child: Text(
                           widget.shop.name,
-                          style: const TextStyle(
-                            fontSize: 24,
+                          style: TextStyle(
+                            fontSize: isTablet ? 28 : (isLargeScreen ? 32 : 24),
                             fontWeight: FontWeight.bold,
                           ),
                         ),

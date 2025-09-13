@@ -57,8 +57,10 @@ class LocationService {
 
       // Get current position with high accuracy
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: _timeout,
+        locationSettings: LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: _timeout,
+        ),
       );
 
       // Check if accuracy is acceptable

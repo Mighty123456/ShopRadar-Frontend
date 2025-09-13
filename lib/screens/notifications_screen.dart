@@ -66,16 +66,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    final isLargeScreen = screenSize.width > 900;
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(
+          'Notifications',
+          style: TextStyle(
+            fontSize: isTablet ? 24 : (isLargeScreen ? 28 : 20),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         backgroundColor: const Color(0xFF2979FF),
         foregroundColor: Colors.white,
         elevation: 0,
+        toolbarHeight: isTablet ? 70 : (isLargeScreen ? 80 : 56),
         actions: [
           if (_unreadCount > 0)
             IconButton(
-              icon: const Icon(Icons.done_all),
+              icon: Icon(
+                Icons.done_all,
+                size: isTablet ? 24 : 20,
+              ),
               onPressed: _markAllAsRead,
               tooltip: 'Mark all as read',
             ),
@@ -124,34 +138,40 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildEmptyState() {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    final isLargeScreen = screenSize.width > 900;
+    
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.notifications_none,
-            size: 80,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No notifications yet',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[600],
+      child: Padding(
+        padding: EdgeInsets.all(isTablet ? 32 : 16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.notifications_none,
+              size: isTablet ? 100 : (isLargeScreen ? 120 : 80),
+              color: Colors.grey[400],
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'We\'ll notify you about price drops,\nnew offers, and more!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[500],
+            SizedBox(height: isTablet ? 24 : 16),
+            Text(
+              'No notifications yet',
+              style: TextStyle(
+                fontSize: isTablet ? 24 : (isLargeScreen ? 28 : 20),
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[600],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
+            SizedBox(height: isTablet ? 12 : 8),
+            Text(
+              'We\'ll notify you about price drops,\nnew offers, and more!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: isTablet ? 18 : (isLargeScreen ? 20 : 16),
+                color: Colors.grey[500],
+              ),
+            ),
+            SizedBox(height: isTablet ? 32 : 24),
           ElevatedButton.icon(
             onPressed: () {
               // TODO: Navigate to shops to enable notifications
@@ -159,16 +179,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 const SnackBar(content: Text('Explore shops to get notifications!')),
               );
             },
-            icon: const Icon(Icons.explore),
-            label: const Text('Explore Shops'),
+            icon: Icon(
+              Icons.explore,
+              size: isTablet ? 20 : 16,
+            ),
+            label: Text(
+              'Explore Shops',
+              style: TextStyle(
+                fontSize: isTablet ? 16 : 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2979FF),
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 32 : 24, 
+                vertical: isTablet ? 16 : 12
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
+              ),
             ),
           ),
         ],
       ),
+    ),
     );
   }
 

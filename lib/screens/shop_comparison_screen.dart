@@ -420,7 +420,7 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _selectedProduct.isEmpty ? null : _selectedProduct,
+                  initialValue: _selectedProduct.isEmpty ? null : _selectedProduct,
                   decoration: InputDecoration(
                     hintText: 'Choose a product...',
                     border: OutlineInputBorder(

@@ -106,6 +106,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final isTablet = size.width > 600;
+    final isLargeScreen = size.width > 900;
+    
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -114,14 +117,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
             Align(
               alignment: Alignment.topRight,
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: EdgeInsets.all(isTablet ? 24.0 : 16.0),
                 child: TextButton(
                   onPressed: _finishOnboarding,
                   child: Text(
                     'Skip',
                     style: TextStyle(
                       color: Colors.grey[600],
-                      fontSize: 16,
+                      fontSize: isTablet ? 18 : (isLargeScreen ? 20 : 16),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -143,7 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                 itemBuilder: (context, index) {
                   final step = _steps[index];
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    padding: EdgeInsets.symmetric(horizontal: isTablet ? 48.0 : 32.0),
                     child: SingleChildScrollView(
                       physics: const BouncingScrollPhysics(),
                       child: Column(
@@ -154,8 +157,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                           child: SlideTransition(
                             position: _slideAnimation,
                             child: Container(
-                              width: size.width * 0.6,
-                              height: size.width * 0.6,
+                              width: isTablet ? size.width * 0.5 : size.width * 0.6,
+                              height: isTablet ? size.width * 0.5 : size.width * 0.6,
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   begin: Alignment.topLeft,
@@ -165,21 +168,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                                     step.color.withValues(alpha: 0.05),
                                   ],
                                 ),
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(isTablet ? 32 : 24),
                                 border: Border.all(
                                   color: step.color.withValues(alpha: 0.2),
                                   width: 2,
                                 ),
                               ),
                               child: Padding(
-                                padding: const EdgeInsets.all(20.0),
-                                child: _buildImageWidget(step, size.width * 0.4),
+                                padding: EdgeInsets.all(isTablet ? 32.0 : 20.0),
+                                child: _buildImageWidget(step, isTablet ? size.width * 0.3 : size.width * 0.4),
                               ),
                             ),
                           ),
                         ),
                         
-                        const SizedBox(height: 32),
+                        SizedBox(height: isTablet ? 48 : 32),
                         
                         FadeTransition(
                           opacity: _fadeAnimation,
@@ -188,7 +191,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                             child: Text(
                               step.title,
                               style: TextStyle(
-                                fontSize: 28,
+                                fontSize: isTablet ? 36 : (isLargeScreen ? 40 : 28),
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                                 height: 1.2,
@@ -198,7 +201,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                           ),
                         ),
                         
-                        const SizedBox(height: 16),
+                        SizedBox(height: isTablet ? 24 : 16),
                         
                         FadeTransition(
                           opacity: _fadeAnimation,
@@ -207,7 +210,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                             child: Text(
                               step.description,
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: isTablet ? 20 : (isLargeScreen ? 22 : 16),
                                 color: Colors.grey[600],
                                 height: 1.5,
                               ),
@@ -229,30 +232,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
               children: List.generate(_steps.length, (index) {
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
-                  margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
-                  width: _currentPage == index ? 32 : 8,
-                  height: 8,
+                  margin: EdgeInsets.symmetric(
+                    horizontal: isTablet ? 6 : 4, 
+                    vertical: isTablet ? 20 : 16
+                  ),
+                  width: _currentPage == index ? (isTablet ? 40 : 32) : (isTablet ? 12 : 8),
+                  height: isTablet ? 12 : 8,
                   decoration: BoxDecoration(
                     color: _currentPage == index
                         ? _steps[_currentPage].color
                         : Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(isTablet ? 6 : 4),
                   ),
                 );
               }),
             ),
             
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
+              padding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 48.0 : 32.0, 
+                vertical: isTablet ? 32.0 : 24.0
+              ),
               child: Row(
                 children: [
                   if (_currentPage > 0)
                     Expanded(
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: EdgeInsets.symmetric(
+                            vertical: isTablet ? 20 : 16,
+                            horizontal: isTablet ? 24 : 16,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
                           ),
                           side: BorderSide(color: Colors.grey[300]!),
                         ),
@@ -266,14 +278,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                           'Previous',
                           style: TextStyle(
                             color: Colors.grey[600],
-                            fontSize: 16,
+                            fontSize: isTablet ? 16 : 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                     ),
                   
-                  if (_currentPage > 0) const SizedBox(width: 16),
+                  if (_currentPage > 0) SizedBox(width: isTablet ? 20 : 16),
                   
                   Expanded(
                     flex: _currentPage > 0 ? 1 : 1,
@@ -281,17 +293,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _steps[_currentPage].color,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(
+                          vertical: isTablet ? 20 : 16,
+                          horizontal: isTablet ? 24 : 16,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
                         ),
                         elevation: 2,
                       ),
                       onPressed: _nextPage,
                       child: Text(
                         _currentPage == _steps.length - 1 ? 'Get Started' : 'Next',
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: TextStyle(
+                          fontSize: isTablet ? 16 : 14,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

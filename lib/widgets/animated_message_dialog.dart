@@ -200,16 +200,33 @@ class _AnimatedMessageDialogState extends State<AnimatedMessageDialog>
             opacity: _opacityAnimation,
             child: ScaleTransition(
               scale: _scaleAnimation,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  margin: EdgeInsets.symmetric(
-                    horizontal: isSmallScreen ? 16 : 24,
-                    vertical: isSmallScreen ? 32 : 48,
-                  ),
-                  child: widget.isOTPNotification 
-                      ? _buildOTPNotification(isSmallScreen)
-                      : _buildConceptNotification(isSmallScreen),
+              child: IgnorePointer(
+                ignoring: true, // allow taps to pass through outside the card
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: SafeArea(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 16 : 24,
+                            vertical: isSmallScreen ? 12 : 16,
+                          ),
+                          child: IgnorePointer(
+                            ignoring: false, // only the card captures taps
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: widget.isOTPNotification
+                                  ? _buildOTPNotification(isSmallScreen)
+                                  : _buildConceptNotification(isSmallScreen),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

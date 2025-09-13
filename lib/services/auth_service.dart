@@ -81,13 +81,17 @@ class AuthService {
       debugPrint('Starting registration for email: $email');
       
       // Upload license file first if provided
-      String? licenseDocumentUrl;
+      Map<String, dynamic>? licenseDocumentData;
       if (role == 'shop' && licenseFile != null) {
         debugPrint('Uploading license file...');
         final uploadResult = await _uploadLicenseFile(licenseFile);
         if (uploadResult['success']) {
-          licenseDocumentUrl = uploadResult['url'];
-          debugPrint('License file uploaded successfully: $licenseDocumentUrl');
+          licenseDocumentData = {
+            'url': uploadResult['url'],
+            'publicId': uploadResult['publicId'],
+            'mimeType': uploadResult['mimeType'] ?? 'application/pdf',
+          };
+          debugPrint('License file uploaded successfully: ${uploadResult['url']}');
         } else {
           return {
             'success': false,
@@ -114,9 +118,9 @@ class AuthService {
           'address': address,
         });
         
-        // Add license document URL if uploaded
-        if (licenseDocumentUrl != null) {
-          registrationData['licenseDocumentUrl'] = licenseDocumentUrl;
+        // Add license document data if uploaded
+        if (licenseDocumentData != null) {
+          registrationData['licenseDocument'] = licenseDocumentData;
         }
         
         // Add location verification data

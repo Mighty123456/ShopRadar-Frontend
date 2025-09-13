@@ -52,6 +52,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    final isLargeScreen = screenSize.width > 900;
+    
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: Stack(
@@ -77,13 +81,16 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                double maxWidth = constraints.maxWidth < 600 ? constraints.maxWidth : 420;
+                double maxWidth = constraints.maxWidth < 600 ? constraints.maxWidth : (isLargeScreen ? 500 : 420);
                 double horizontalPadding = constraints.maxWidth < 600 ? 16.0 : (constraints.maxWidth - maxWidth) / 2;
                 return Center(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 16),
                     child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 32.0),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding, 
+                        vertical: isTablet ? 48.0 : 32.0
+                      ),
                       child: ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: maxWidth),
                         child: Column(
@@ -94,10 +101,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                               child: Text(
                                 'SHOPRADAR',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 44,
+                                  fontSize: isTablet ? 52 : (isLargeScreen ? 56 : 44),
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFF2979FF),
-                                  letterSpacing: 5,
+                                  letterSpacing: isTablet ? 6 : 5,
                                   shadows: [
                                     Shadow(
                                       color: Colors.black12,
@@ -108,28 +115,31 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 36),
+                            SizedBox(height: isTablet ? 48 : 36),
                             Container(
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(28),
+                                borderRadius: BorderRadius.circular(isTablet ? 32 : 28),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withValues(alpha: 0.06),
-                                    blurRadius: 24,
+                                    blurRadius: isTablet ? 28 : 24,
                                     offset: const Offset(0, 8),
                                   ),
                                 ],
                               ),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isTablet ? 32 : 28, 
+                                  vertical: isTablet ? 40 : 32
+                                ),
                               child: Column(
                                 children: [
                                     Container(
-                                      height: 48,
+                                      height: isTablet ? 56 : 48,
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFF7F8FA),
-                                        borderRadius: BorderRadius.circular(24),
+                                        borderRadius: BorderRadius.circular(isTablet ? 28 : 24),
                                       ),
                                       child: Row(
                                     children: [
@@ -142,15 +152,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                             duration: const Duration(milliseconds: 300),
                                             decoration: BoxDecoration(
                                                   color: isSignIn ? const Color(0xFF2979FF) : Colors.transparent,
-                                                  borderRadius: BorderRadius.circular(24),
+                                                  borderRadius: BorderRadius.circular(isTablet ? 28 : 24),
                                             ),
                                             child: Center(
                                               child: Text(
                                                 'Sign In',
                                                 style: GoogleFonts.poppins(
+                                                  fontSize: isTablet ? 16 : 14,
                                                   fontWeight: FontWeight.w600,
-                                                      fontSize: 16,
-                                                      color: isSignIn ? Colors.white : Color(0xFF232136),
+                                                  color: isSignIn ? Colors.white : Color(0xFF232136),
                                                 ),
                                               ),
                                             ),
@@ -166,16 +176,16 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                             duration: const Duration(milliseconds: 300),
                                             decoration: BoxDecoration(
                                                   color: !isSignIn ? const Color(0xFF2979FF) : Colors.transparent,
-                                                  borderRadius: BorderRadius.circular(24),
+                                                  borderRadius: BorderRadius.circular(isTablet ? 28 : 24),
                                             ),
                                             child: Center(
                                               child: Text(
                                                 'Sign Up',
                                                 style: GoogleFonts.poppins(
+                                                  fontSize: isTablet ? 16 : 14,
                                                   fontWeight: FontWeight.w600,
-                                                      fontSize: 16,
-                                                      color: !isSignIn ? Colors.white : Color(0xFF232136),
-                                                    ),
+                                                  color: !isSignIn ? Colors.white : Color(0xFF232136),
+                                                ),
                                                   ),
                                                 ),
                                               ),
@@ -190,13 +200,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                     child: isSignIn
                                           ? Column(
                                         children: [
-                                          const SizedBox(height: 28),
+                                          SizedBox(height: isTablet ? 36 : 28),
                                           _SignInForm(key: const ValueKey('signIn')),
                                         ],
                                       )
                                           : Column(
                                         children: [
-                                          const SizedBox(height: 28),
+                                          SizedBox(height: isTablet ? 36 : 28),
                                           _SignUpForm(key: const ValueKey('signUp')),
                                         ],
                                       ),
@@ -316,6 +326,9 @@ class _SignInFormState extends State<_SignInForm> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
     return Form(
       key: _formKey,
       child: Column(
@@ -330,26 +343,26 @@ class _SignInFormState extends State<_SignInForm> {
               labelStyle: GoogleFonts.poppins(
               color: Color(0xFF6B7280),
               fontWeight: FontWeight.w500,
-              fontSize: 16,
+              fontSize: isTablet ? 18 : 16,
               ),
-            prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF6B7280)),
+            prefixIcon: Icon(Icons.email_outlined, color: Color(0xFF6B7280), size: isTablet ? 24 : 20),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(isTablet ? 16 : 14),
               borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(isTablet ? 16 : 14),
               borderSide: const BorderSide(color: Color(0xFF2979FF), width: 2),
             ),
               errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 14),
                 borderSide: const BorderSide(color: Colors.red),
               ),
           ),
           style: GoogleFonts.poppins(
             color: Color(0xFF232136),
             fontWeight: FontWeight.w500,
-            fontSize: 16,
+            fontSize: isTablet ? 18 : 16,
             ),
             keyboardType: TextInputType.emailAddress,
           cursorColor: const Color(0xFF2979FF),
@@ -363,7 +376,7 @@ class _SignInFormState extends State<_SignInForm> {
               return null;
             },
           ),
-        const SizedBox(height: 18),
+        SizedBox(height: isTablet ? 22 : 18),
           TextFormField(
             controller: _passwordController,
             decoration: InputDecoration(
@@ -373,30 +386,33 @@ class _SignInFormState extends State<_SignInForm> {
               labelStyle: GoogleFonts.poppins(
               color: Color(0xFF6B7280),
               fontWeight: FontWeight.w500,
-              fontSize: 16,
+              fontSize: isTablet ? 18 : 16,
               ),
-            prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF6B7280)),
+            prefixIcon: Icon(Icons.lock_outline, color: Color(0xFF6B7280), size: isTablet ? 24 : 20),
               suffixIcon: IconButton(
-                icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  size: isTablet ? 24 : 20,
+                ),
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(isTablet ? 16 : 14),
               borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(isTablet ? 16 : 14),
               borderSide: const BorderSide(color: Color(0xFF2979FF), width: 2),
             ),
               errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 14),
                 borderSide: const BorderSide(color: Colors.red),
               ),
           ),
           style: GoogleFonts.poppins(
             color: Color(0xFF232136),
             fontWeight: FontWeight.w500,
-            fontSize: 16,
+            fontSize: isTablet ? 18 : 16,
             ),
             obscureText: _obscurePassword,
           cursorColor: const Color(0xFF2979FF),
@@ -411,7 +427,7 @@ class _SignInFormState extends State<_SignInForm> {
             },
         ),
         Padding(
-          padding: const EdgeInsets.only(top: 8.0, bottom: 18.0),
+          padding: EdgeInsets.only(top: isTablet ? 12.0 : 8.0, bottom: isTablet ? 24.0 : 18.0),
           child: Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
@@ -423,7 +439,7 @@ class _SignInFormState extends State<_SignInForm> {
                 style: GoogleFonts.poppins(
                   color: const Color(0xFF2979FF),
                   fontWeight: FontWeight.w600,
-                  fontSize: 14,
+                  fontSize: isTablet ? 16 : 14,
                   decoration: TextDecoration.underline,
                 ),
               ),
@@ -435,22 +451,22 @@ class _SignInFormState extends State<_SignInForm> {
             style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF2979FF),
             foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              padding: EdgeInsets.symmetric(vertical: isTablet ? 20 : 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isTablet ? 16 : 14)),
             elevation: 2,
             ),
             child: _isLoading
                 ? SizedBox(
-                    height: 20,
-                    width: 20,
+                    height: isTablet ? 24 : 20,
+                    width: isTablet ? 24 : 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                : Text('Sign In', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
+                : Text('Sign In', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: isTablet ? 18 : 16)),
           ),
-        const SizedBox(height: 14),
+        SizedBox(height: isTablet ? 18 : 14),
           const SocialLoginButtons(),
         ],
       ),
@@ -761,6 +777,9 @@ class _SignUpFormState extends State<_SignUpForm> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
     return Form(
       key: _formKey,
       child: Column(
@@ -775,26 +794,26 @@ class _SignUpFormState extends State<_SignUpForm> {
             labelStyle: GoogleFonts.poppins(
               color: Color(0xFF6B7280),
               fontWeight: FontWeight.w500,
-              fontSize: 16,
+              fontSize: isTablet ? 18 : 16,
             ),
-            prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF6B7280)),
+            prefixIcon: Icon(Icons.person_outline, color: Color(0xFF6B7280), size: isTablet ? 24 : 20),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(isTablet ? 16 : 14),
               borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(isTablet ? 16 : 14),
               borderSide: const BorderSide(color: Color(0xFF2979FF), width: 2),
             ),
               errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 14),
                 borderSide: const BorderSide(color: Colors.red),
               ),
           ),
           style: GoogleFonts.poppins(
             color: Color(0xFF232136),
             fontWeight: FontWeight.w500,
-            fontSize: 16,
+            fontSize: isTablet ? 18 : 16,
           ),
           keyboardType: TextInputType.name,
           cursorColor: const Color(0xFF2979FF),
@@ -805,7 +824,7 @@ class _SignUpFormState extends State<_SignUpForm> {
               return null;
             },
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: isTablet ? 22 : 18),
         
         if (selectedRole == 'shop') ...[
           // Shop Name Field
@@ -905,7 +924,7 @@ class _SignUpFormState extends State<_SignUpForm> {
               border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
             child: DropdownButtonFormField<String>(
-              value: selectedState,
+              initialValue: selectedState,
               decoration: InputDecoration(
                 labelText: 'State *',
                 labelStyle: GoogleFonts.poppins(

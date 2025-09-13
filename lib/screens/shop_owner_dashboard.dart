@@ -34,25 +34,45 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
 
   Future<void> _loadShopData() async {
     try {
-      // Load shop data and stats in parallel
-      final results = await Future.wait([
-        ShopService.getMyShop(),
-        ShopService.getShopStats(),
-      ]);
-      
-      final shopResult = results[0];
-      final statsResult = results[1];
+      // Load shop data first
+      final shopResult = await ShopService.getMyShop();
       
       if (mounted) {
-        setState(() {
-          if (shopResult['success']) {
+        if (shopResult['success']) {
+          setState(() {
             _shopData = shopResult['shop'];
             _isShopOpen = _shopData?['isLive'] ?? false;
+          });
+          
+          // Only load stats if shop exists
+          final statsResult = await ShopService.getShopStats();
+          if (mounted && statsResult['success']) {
+            setState(() {
+              _shopStats = statsResult['stats'];
+            });
           }
-          if (statsResult['success']) {
-            _shopStats = statsResult['stats'];
+        } else {
+          // No shop found - show message and redirect to shop registration
+          if (mounted) {
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: 'No shop found. Please register your shop first.',
+              type: MessageType.warning,
+              title: 'Shop Registration Required',
+            );
+            
+            // Redirect to shop profile screen for registration
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ShopProfileScreen(),
+                  ),
+                );
+              }
+            });
           }
-        });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -138,7 +158,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
                 Switch(
                   value: _isShopOpen,
                   onChanged: _updateShopStatus,
-                  activeColor: Colors.green,
+                  activeThumbColor: Colors.green,
                   inactiveThumbColor: Colors.red,
                 ),
               ],

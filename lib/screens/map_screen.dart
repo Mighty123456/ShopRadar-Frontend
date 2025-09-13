@@ -12,11 +12,13 @@ import '../widgets/search_overlay.dart';
 class MapScreen extends StatefulWidget {
   final String? searchQuery;
   final String? category;
+  final List<Shop>? shopsOverride;
   
   const MapScreen({
     super.key,
     this.searchQuery,
     this.category,
+    this.shopsOverride,
   });
 
   @override
@@ -135,6 +137,13 @@ class _MapScreenState extends State<MapScreen> {
         });
       }
 
+      // If UI passes in override shops (mock), use them directly
+      if (widget.shopsOverride != null && widget.shopsOverride!.isNotEmpty) {
+        _shops = widget.shopsOverride!;
+        _updateMarkers();
+        return;
+      }
+
       if (_currentLocation == null) {
         return;
       }
@@ -203,7 +212,7 @@ class _MapScreenState extends State<MapScreen> {
       }
     } catch (e) {
       debugPrint('Error loading shops: $e');
-      // Leave list empty on error; do not populate mock data
+      // Leave list empty on error; do not populate mock data here
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to load shops')),
@@ -313,6 +322,9 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
     return Scaffold(
       body: Stack(
         children: [
@@ -350,15 +362,18 @@ class _MapScreenState extends State<MapScreen> {
           
           // Back/Exit Button
           Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            left: 16,
+            top: MediaQuery.of(context).padding.top + (isTablet ? 20 : 16),
+            left: isTablet ? 20 : 16,
             child: Material(
               color: Colors.white,
               elevation: 2,
               shape: const CircleBorder(),
               clipBehavior: Clip.antiAlias,
               child: IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(
+                  Icons.arrow_back,
+                  size: isTablet ? 24 : 20,
+                ),
                 onPressed: () => Navigator.of(context).maybePop(),
                 tooltip: 'Back',
               ),
@@ -381,8 +396,8 @@ class _MapScreenState extends State<MapScreen> {
           
           // Map Controls
           Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            right: 16,
+            top: MediaQuery.of(context).padding.top + (isTablet ? 20 : 16),
+            right: isTablet ? 20 : 16,
             child: MapControls(
               onSearchPressed: () {
                 setState(() {

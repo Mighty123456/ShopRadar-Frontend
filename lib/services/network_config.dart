@@ -12,8 +12,8 @@ class NetworkConfig {
   static Map<String, String> baseUrls = {
     // Use local IP for emulator (faster for development)
     emulator: 'http://192.168.31.169:3000',
-    // Use local IP for physical devices during development
-    physicalDevice: 'http://192.168.31.169:3000',
+    // Prefer hosted API on physical devices so it works off your LAN
+    physicalDevice: 'https://shopradarbackend.onrender.com',
     // Use local IP for simulator (faster for development)
     simulator: 'http://192.168.31.169:3000',
   };
@@ -209,8 +209,10 @@ class NetworkConfig {
   static Future<bool> _testConnection(String url) async {
     try {
       debugPrint('Testing connection to: $url');
+      // Render can cold-start; allow longer timeout for https hosts
+      final isHosted = url.startsWith('https://');
       final response = await http.get(Uri.parse('$url/health'))
-          .timeout(const Duration(seconds: 10));
+          .timeout(Duration(seconds: isHosted ? 20 : 10));
       
       if (response.statusCode == 200) {
         debugPrint('Connection successful to: $url');
@@ -409,8 +411,9 @@ class NetworkConfig {
   
   static Future<bool> isNetworkHealthy() async {
     try {
+      final isHosted = baseUrl.startsWith('https://');
       final response = await http.get(Uri.parse('$baseUrl/health'))
-          .timeout(const Duration(seconds: 10));
+          .timeout(Duration(seconds: isHosted ? 20 : 10));
       return response.statusCode == 200;
     } catch (e) {
       return false;
