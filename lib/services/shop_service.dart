@@ -316,6 +316,10 @@ class ShopService {
 
       final data = jsonDecode(response.body);
       
+      debugPrint('Parsed response data: $data');
+      debugPrint('Response success field: ${data['success']}');
+      debugPrint('Response success type: ${data['success'].runtimeType}');
+      
       if (response.statusCode == 201) {
         return {
           'success': true,

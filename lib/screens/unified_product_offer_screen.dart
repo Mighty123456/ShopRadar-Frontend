@@ -282,7 +282,7 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
           _isLoading = false;
         });
 
-        if (result['success']) {
+        if (result['success'] == true) {
           MessageHelper.showAnimatedMessage(
             context,
             message: _hasOffer 
@@ -295,6 +295,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
           // Navigate back to product management
           Navigator.of(context).pop();
         } else {
+          // Add debug logging to understand what's happening
+          debugPrint('Product creation failed. Result: $result');
+          debugPrint('Success value: ${result['success']}');
+          debugPrint('Success type: ${result['success'].runtimeType}');
           MessageHelper.showAnimatedMessage(
             context,
             message: result['message'] ?? 'Failed to create product',

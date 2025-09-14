@@ -109,9 +109,6 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     _showProductDialog();
   }
 
-
-
-
   void _editProduct(Map<String, dynamic> product) {
     setState(() {
       _isEditing = true;
@@ -547,6 +544,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
             _clearForm();
           }
         } else {
+          // Add debug logging to understand what's happening
+          debugPrint('Product creation failed. Result: $result');
+          debugPrint('Success value: ${result['success']}');
+          debugPrint('Success type: ${result['success'].runtimeType}');
           if (mounted) {
             // Check if the error is due to no shop being registered
             final message = result['message'] ?? 'Failed to add product';
@@ -690,33 +691,21 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
       if (!mounted) return;
       
       // Check if the result indicates success
-      if (result['success'] == true || result['success'] == 'true') {
+      final isSuccess = result['success'] == true || result['success'] == 'true' || result['success'] == 1;
+      
+      if (isSuccess) {
         // Always refresh the product list after delete attempt
         await _loadProducts();
         
-        // Check if the product was actually deleted by looking at the updated list
-        final productStillExists = _products.any((product) => product['id'] == productId);
-        
         if (!mounted) return;
         
-        if (!productStillExists) {
-          // Product was successfully deleted
-          MessageHelper.showAnimatedMessage(
-            context,
-            message: 'Product deleted successfully!',
-            type: MessageType.success,
-            title: 'Product Deleted',
-          );
-        } else {
-          // Product still exists, but API said it was successful
-          // This might be a timing issue, show a different message
-          MessageHelper.showAnimatedMessage(
-            context,
-            message: 'Delete request sent. Please refresh if needed.',
-            type: MessageType.info,
-            title: 'Delete Requested',
-          );
-        }
+        // Show success message
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Product deleted successfully!',
+          type: MessageType.success,
+          title: 'Product Deleted',
+        );
       } else {
         // API explicitly returned failure
         MessageHelper.showAnimatedMessage(
@@ -735,12 +724,27 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
       await _loadProducts();
       
       if (!mounted) return;
-      MessageHelper.showAnimatedMessage(
-        context,
-        message: 'Delete operation completed. Please check if the product was removed.',
-        type: MessageType.info,
-        title: 'Delete Status',
-      );
+      
+      // Check if the product was actually deleted
+      final productStillExists = _products.any((product) => product['id'] == productId);
+      
+      if (!productStillExists) {
+        // Product was actually deleted despite the error
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Product deleted successfully!',
+          type: MessageType.success,
+          title: 'Product Deleted',
+        );
+      } else {
+        // Product still exists, show error
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Failed to delete product. Please try again.',
+          type: MessageType.error,
+          title: 'Delete Failed',
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
