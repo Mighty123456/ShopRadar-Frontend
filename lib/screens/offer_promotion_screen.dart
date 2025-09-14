@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/animated_message_dialog.dart';
+import '../services/shop_service.dart';
 
 class OfferPromotionScreen extends StatefulWidget {
   const OfferPromotionScreen({super.key});
@@ -24,35 +25,18 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
   bool _isLoading = false;
   bool _isEditing = false;
   String? _editingOfferId;
+  bool _isLoadingOffers = false;
   
-  final List<Map<String, dynamic>> _offers = [
-    {
-      'id': '1',
-      'title': 'Summer Sale',
-      'description': 'Get 20% off on all electronics',
-      'type': 'Percentage',
-      'value': 20,
-      'target': 'All Customers',
-      'startDate': DateTime.now(),
-      'endDate': DateTime.now().add(const Duration(days: 30)),
-      'maxUses': 100,
-      'currentUses': 45,
-      'isActive': true,
-    },
-    {
-      'id': '2',
-      'title': 'New Customer Discount',
-      'description': 'First-time customers get \$10 off',
-      'type': 'Fixed Amount',
-      'value': 10,
-      'target': 'New Customers',
-      'startDate': DateTime.now().subtract(const Duration(days: 5)),
-      'endDate': DateTime.now().add(const Duration(days: 25)),
-      'maxUses': 50,
-      'currentUses': 12,
-      'isActive': true,
-    },
-  ];
+  List<Map<String, dynamic>> _offers = [];
+  List<Map<String, dynamic>> _products = [];
+  Map<String, dynamic>? _selectedProduct;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOffers();
+    _loadProducts();
+  }
 
   @override
   void dispose() {
@@ -63,27 +47,90 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
     super.dispose();
   }
 
+  Future<void> _loadOffers() async {
+    setState(() {
+      _isLoadingOffers = true;
+    });
+
+    try {
+      final result = await ShopService.getMyOffers();
+      if (result['success'] == true) {
+        setState(() {
+          _offers = List<Map<String, dynamic>>.from(result['data'] ?? []);
+        });
+      } else {
+        if (mounted) {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: result['message'] ?? 'Failed to load offers',
+            type: MessageType.error,
+            title: 'Load Error',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error loading offers: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Load Error',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingOffers = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final result = await ShopService.getMyProducts();
+      if (result['success'] == true) {
+        setState(() {
+          _products = List<Map<String, dynamic>>.from(result['data'] ?? []);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading products: $e');
+    }
+  }
+
   void _addNewOffer() {
+    if (_products.isEmpty) {
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'No products available. Please add a product first before creating offers.',
+        type: MessageType.warning,
+        title: 'No Products',
+      );
+      return;
+    }
+    
     setState(() {
       _isEditing = false;
       _editingOfferId = null;
+      _selectedProduct = null;
       _clearForm();
     });
-    _showOfferDialog();
+    _showProductSelectionDialog();
   }
 
   void _editOffer(Map<String, dynamic> offer) {
     setState(() {
       _isEditing = true;
-      _editingOfferId = offer['id'];
-      _offerTitleController.text = offer['title'];
-      _descriptionController.text = offer['description'];
-      _discountController.text = offer['value'].toString();
-      _maxUsesController.text = offer['maxUses'].toString();
-      _selectedType = offer['type'];
-      _selectedTarget = offer['target'];
-      _startDate = offer['startDate'];
-      _endDate = offer['endDate'];
+      _editingOfferId = offer['_id'] ?? offer['id'];
+      _offerTitleController.text = offer['title'] ?? '';
+      _descriptionController.text = offer['description'] ?? '';
+      _discountController.text = offer['discountValue']?.toString() ?? '0';
+      _maxUsesController.text = offer['maxUses']?.toString() ?? '0';
+      _selectedType = offer['discountType'] ?? 'Percentage';
+      _selectedTarget = 'All Customers'; // Default since API doesn't have target field
+      _startDate = DateTime.parse(offer['startDate']);
+      _endDate = DateTime.parse(offer['endDate']);
     });
     _showOfferDialog();
   }
@@ -97,16 +144,17 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
     _selectedTarget = 'All Customers';
     _startDate = DateTime.now();
     _endDate = DateTime.now().add(const Duration(days: 7));
+    _selectedProduct = null;
   }
 
-  void _showOfferDialog() {
+  void _showProductSelectionDialog() {
     showDialog(
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -114,7 +162,7 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: const BoxDecoration(
-                  color: Color(0xFF2979FF),
+                  color: Color(0xFFFF9800),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
@@ -122,26 +170,215 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      _isEditing ? Icons.edit : Icons.local_offer,
+                    const Icon(
+                      Icons.inventory_2,
                       color: Colors.white,
                       size: 24,
                     ),
                     const SizedBox(width: 12),
-                    Text(
-                      _isEditing ? 'Edit Offer' : 'Create New Offer',
-                      style: const TextStyle(
+                    const Expanded(
+                      child: Text(
+                        'Select Product for Offer',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(
+                        Icons.close,
                         color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
               ),
               Flexible(
-                child: SingleChildScrollView(
+                child: ListView.builder(
+                  shrinkWrap: true,
                   padding: const EdgeInsets.all(20),
+                  itemCount: _products.length,
+                  itemBuilder: (context, index) {
+                    final product = _products[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blue.shade100,
+                          child: Icon(
+                            Icons.inventory_2,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                        title: Text(
+                          product['name'] ?? 'Unknown Product',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Category: ${product['category'] ?? 'N/A'}'),
+                            Text('Price: ₹${product['price']?.toString() ?? '0'}'),
+                            Text('Stock: ${product['stock']?.toString() ?? '0'}'),
+                          ],
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios),
+                        onTap: () {
+                          setState(() {
+                            _selectedProduct = product;
+                          });
+                          Navigator.of(context).pop();
+                          _showOfferDialog();
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showOfferDialog() {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isTablet ? 20 : 16)),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+            maxWidth: isTablet ? 600 : double.infinity,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(isTablet ? 24 : 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2979FF),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(isTablet ? 20 : 16),
+                    topRight: Radius.circular(isTablet ? 20 : 16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isEditing ? Icons.edit : Icons.local_offer,
+                      color: Colors.white,
+                      size: isTablet ? 28 : 24,
+                    ),
+                    SizedBox(width: isTablet ? 16 : 12),
+                    Text(
+                      _isEditing ? 'Edit Offer' : 'Create New Offer',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: isTablet ? 24 : 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Show selected product information
+              if (_selectedProduct != null && !_isEditing)
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(isTablet ? 20 : 16),
+                  margin: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 20),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Colors.blue.shade100,
+                        child: Icon(
+                          Icons.inventory_2,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                      SizedBox(width: isTablet ? 16 : 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Selected Product',
+                              style: TextStyle(
+                                fontSize: isTablet ? 16 : 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue.shade800,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              _selectedProduct!['name'] ?? 'Unknown Product',
+                              style: TextStyle(
+                                fontSize: isTablet ? 18 : 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            Text(
+                              '₹${_selectedProduct!['price']?.toString() ?? '0'} • ${_selectedProduct!['category'] ?? 'N/A'}',
+                              style: TextStyle(
+                                fontSize: isTablet ? 14 : 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedProduct = null;
+                          });
+                          Navigator.of(context).pop();
+                          _showProductSelectionDialog();
+                        },
+                        child: Text(
+                          'Change',
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(isTablet ? 24 : 20),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -439,98 +676,157 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
   Future<void> _saveOffer() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Check if products are available for creating offers
+    if (_products.isEmpty) {
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'No products available. Please add a product first before creating offers.',
+        type: MessageType.warning,
+        title: 'No Products',
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
-      await Future.delayed(const Duration(seconds: 1));
-      
-      final offerData = {
-        'title': _offerTitleController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'type': _selectedType,
-        'value': double.parse(_discountController.text),
-        'target': _selectedTarget,
-        'startDate': _startDate,
-        'endDate': _endDate,
-        'maxUses': int.parse(_maxUsesController.text),
-      };
-
       if (_isEditing) {
-        final index = _offers.indexWhere((o) => o['id'] == _editingOfferId);
-        if (index != -1) {
-          setState(() {
-            _offers[index]['title'] = offerData['title'];
-            _offers[index]['description'] = offerData['description'];
-            _offers[index]['type'] = offerData['type'];
-            _offers[index]['value'] = offerData['value'];
-            _offers[index]['target'] = offerData['target'];
-            _offers[index]['startDate'] = offerData['startDate'];
-            _offers[index]['endDate'] = offerData['endDate'];
-            _offers[index]['maxUses'] = offerData['maxUses'];
-          });
+        // Update existing offer
+        final result = await ShopService.updateOffer(
+          offerId: _editingOfferId!,
+          title: _offerTitleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          discountType: _selectedType,
+          discountValue: double.parse(_discountController.text),
+          startDate: _startDate,
+          endDate: _endDate,
+          maxUses: int.parse(_maxUsesController.text),
+        );
+
+        if (mounted) {
+          if (result['success'] == true) {
+            Navigator.of(context).pop();
+            await _loadOffers(); // Refresh the offers list
+            
+            if (!mounted) return;
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: 'Offer updated successfully!',
+              type: MessageType.success,
+              title: 'Offer Updated',
+            );
+            _clearForm();
+          } else {
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: result['message'] ?? 'Failed to update offer',
+              type: MessageType.error,
+              title: 'Update Failed',
+            );
+          }
         }
       } else {
-        final newOffer = {
-          'id': DateTime.now().millisecondsSinceEpoch.toString(),
-          'title': offerData['title'],
-          'description': offerData['description'],
-          'type': offerData['type'],
-          'value': offerData['value'],
-          'target': offerData['target'],
-          'startDate': offerData['startDate'],
-          'endDate': offerData['endDate'],
-          'maxUses': offerData['maxUses'],
-          'currentUses': 0,
-          'isActive': true,
-        };
+        // Create new offer - use the selected product
+        if (_selectedProduct == null) {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: 'Please select a product for the offer.',
+            type: MessageType.warning,
+            title: 'No Product Selected',
+          );
+          return;
+        }
         
-        setState(() {
-          _offers.insert(0, newOffer);
-        });
-      }
-
-      if (mounted) {
-        Navigator.of(context).pop();
-        setState(() {
-          _isLoading = false;
-        });
+        final productId = _selectedProduct!['_id'] ?? _selectedProduct!['id'];
         
-        MessageHelper.showAnimatedMessage(
-          context,
-          message: _isEditing 
-            ? 'Offer updated successfully!'
-            : 'Offer created successfully!',
-          type: MessageType.success,
-          title: _isEditing ? 'Offer Updated' : 'Offer Created',
+        final result = await ShopService.createOffer(
+          productId: productId,
+          title: _offerTitleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          discountType: _selectedType,
+          discountValue: double.parse(_discountController.text),
+          startDate: _startDate,
+          endDate: _endDate,
+          maxUses: int.parse(_maxUsesController.text),
         );
-        
-        _clearForm();
+
+        if (mounted) {
+          if (result['success'] == true) {
+            Navigator.of(context).pop();
+            await _loadOffers(); // Refresh the offers list
+            
+            if (!mounted) return;
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: 'Offer created successfully!',
+              type: MessageType.success,
+              title: 'Offer Created',
+            );
+            _clearForm();
+          } else {
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: result['message'] ?? 'Failed to create offer',
+              type: MessageType.error,
+              title: 'Creation Failed',
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error saving offer: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Save Error',
+        );
+      }
+    } finally {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
-        
-        MessageHelper.showAnimatedMessage(
-          context,
-          message: 'Failed to save offer. Please try again.',
-          type: MessageType.error,
-          title: 'Save Failed',
-        );
       }
     }
   }
 
-  void _toggleOfferStatus(String offerId) {
-    setState(() {
-      final index = _offers.indexWhere((o) => o['id'] == offerId);
-      if (index != -1) {
-        _offers[index]['isActive'] = !_offers[index]['isActive'];
+  Future<void> _toggleOfferStatus(String offerId) async {
+    try {
+      final result = await ShopService.toggleOfferStatus(offerId);
+      
+      if (mounted) {
+        if (result['success'] == true) {
+          await _loadOffers(); // Refresh the offers list
+          
+          if (!mounted) return;
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: result['message'] ?? 'Offer status updated successfully!',
+            type: MessageType.success,
+            title: 'Status Updated',
+          );
+        } else {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: result['message'] ?? 'Failed to update offer status',
+            type: MessageType.error,
+            title: 'Update Failed',
+          );
+        }
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error updating offer status: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Update Error',
+        );
+      }
+    }
   }
 
   void _deleteOffer(String offerId) {
@@ -545,18 +841,9 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _offers.removeWhere((o) => o['id'] == offerId);
-              });
+            onPressed: () async {
               Navigator.of(context).pop();
-              
-              MessageHelper.showAnimatedMessage(
-                context,
-                message: 'Offer deleted successfully!',
-                type: MessageType.success,
-                title: 'Offer Deleted',
-              );
+              await _performDelete(offerId);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
@@ -566,42 +853,104 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
     );
   }
 
+  Future<void> _performDelete(String offerId) async {
+    try {
+      final result = await ShopService.deleteOffer(offerId);
+      
+      if (mounted) {
+        if (result['success'] == true) {
+          await _loadOffers(); // Refresh the offers list
+          
+          if (!mounted) return;
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: 'Offer deleted successfully!',
+            type: MessageType.success,
+            title: 'Offer Deleted',
+          );
+        } else {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: result['message'] ?? 'Failed to delete offer',
+            type: MessageType.error,
+            title: 'Delete Failed',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error deleting offer: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Delete Error',
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.white,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Offer Management',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.all(isTablet ? 24 : 16),
+              color: Colors.white,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.arrow_back,
+                          color: Colors.black87,
+                          size: isTablet ? 28 : 24,
+                        ),
+                        tooltip: 'Back',
+                      ),
+                      SizedBox(width: isTablet ? 8 : 4),
+                      Expanded(
+                        child: Text(
+                          'Offer Management',
+                          style: TextStyle(
+                            fontSize: isTablet ? 28 : 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                CustomButton(
-                  text: 'Create Offer',
-                  onPressed: _addNewOffer,
-                ),
-              ],
+                  SizedBox(height: isTablet ? 16 : 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CustomButton(
+                          text: 'Create Offer',
+                          onPressed: _addNewOffer,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
           
           Expanded(
-            child: _offers.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
+            child: _isLoadingOffers
+                ? const Center(child: CircularProgressIndicator())
+                : _offers.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                    padding: EdgeInsets.all(isTablet ? 24 : 16),
                     itemCount: _offers.length,
                     itemBuilder: (context, index) {
                       final offer = _offers[index];
@@ -611,37 +960,41 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
   Widget _buildEmptyState() {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.local_offer_outlined,
-            size: 80,
+            size: isTablet ? 100 : 80,
             color: Colors.grey[400],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: isTablet ? 20 : 16),
           Text(
             'No offers yet',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: isTablet ? 24 : 20,
               fontWeight: FontWeight.w600,
               color: Colors.grey[600],
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: isTablet ? 12 : 8),
           Text(
             'Start by creating your first offer',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: isTablet ? 18 : 16,
               color: Colors.grey[500],
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: isTablet ? 32 : 24),
           CustomButton(
             text: 'Create First Offer',
             onPressed: _addNewOffer,
@@ -652,18 +1005,29 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
   }
 
   Widget _buildOfferCard(Map<String, dynamic> offer) {
-    final isExpired = offer['endDate'].isBefore(DateTime.now());
-    final usagePercentage = (offer['currentUses'] / offer['maxUses']) * 100;
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
+    // Parse dates from API response
+    final startDate = DateTime.parse(offer['startDate']);
+    final endDate = DateTime.parse(offer['endDate']);
+    final isExpired = endDate.isBefore(DateTime.now());
+    final isActive = offer['status'] == 'active';
+    
+    // Calculate usage percentage safely
+    final currentUses = offer['currentUses'] ?? 0;
+    final maxUses = offer['maxUses'] ?? 0;
+    final usagePercentage = maxUses > 0 ? (currentUses / maxUses) * 100 : 0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: EdgeInsets.only(bottom: isTablet ? 20 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
+            blurRadius: isTablet ? 12 : 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -671,7 +1035,7 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(isTablet ? 20 : 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -679,9 +1043,9 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        offer['title'],
-                        style: const TextStyle(
-                          fontSize: 18,
+                        offer['title'] ?? 'Untitled Offer',
+                        style: TextStyle(
+                          fontSize: isTablet ? 22 : 18,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
                         ),
@@ -690,11 +1054,11 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: offer['isActive'] && !isExpired ? Colors.green : Colors.red,
+                        color: isActive && !isExpired ? Colors.green : Colors.red,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        offer['isActive'] && !isExpired ? 'Active' : 'Inactive',
+                        isActive && !isExpired ? 'Active' : 'Inactive',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -704,11 +1068,40 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                // Show product information if available
+                if (offer['productId'] != null && offer['productId']['name'] != null)
+                  Container(
+                    margin: EdgeInsets.only(top: isTablet ? 8 : 6),
+                    padding: EdgeInsets.symmetric(horizontal: isTablet ? 12 : 8, vertical: isTablet ? 6 : 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.inventory_2,
+                          size: isTablet ? 16 : 14,
+                          color: Colors.blue.shade700,
+                        ),
+                        SizedBox(width: isTablet ? 8 : 6),
+                        Text(
+                          'Product: ${offer['productId']['name']}',
+                          style: TextStyle(
+                            fontSize: isTablet ? 14 : 12,
+                            color: Colors.blue.shade800,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                SizedBox(height: isTablet ? 12 : 8),
                 Text(
-                  offer['description'],
+                  offer['description'] ?? 'No description',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: isTablet ? 16 : 14,
                     color: Colors.grey[600],
                   ),
                 ),
@@ -722,9 +1115,9 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        offer['type'] == 'Percentage' 
-                          ? '${offer['value'].toStringAsFixed(0)}% OFF'
-                          : '\$${offer['value'].toStringAsFixed(2)} OFF',
+                        offer['discountType'] == 'Percentage' 
+                          ? '${offer['discountValue']?.toStringAsFixed(0) ?? '0'}% OFF'
+                          : '\$${offer['discountValue']?.toStringAsFixed(2) ?? '0.00'} OFF',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -740,7 +1133,7 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        offer['target'],
+                        'All Customers', // Default since API doesn't have target field
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -760,7 +1153,7 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                           const SizedBox(width: 4),
                           Flexible(
                             child: Text(
-                              '${offer['startDate'].day}/${offer['startDate'].month} - ${offer['endDate'].day}/${offer['endDate'].month}',
+                              '${startDate.day}/${startDate.month} - ${endDate.day}/${endDate.month}',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey[600],
@@ -777,7 +1170,7 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                         Icon(Icons.people, size: 16, color: Colors.grey[600]),
                         const SizedBox(width: 4),
                         Text(
-                          '${offer['currentUses']}/${offer['maxUses']}',
+                          '$currentUses/$maxUses',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -830,12 +1223,12 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                 Row(
                   children: [
                     IconButton(
-                      onPressed: () => _toggleOfferStatus(offer['id']),
+                      onPressed: () => _toggleOfferStatus(offer['_id'] ?? offer['id']),
                       icon: Icon(
-                        offer['isActive'] ? Icons.visibility_off : Icons.visibility,
-                        color: offer['isActive'] ? Colors.orange : Colors.green,
+                        isActive ? Icons.visibility_off : Icons.visibility,
+                        color: isActive ? Colors.orange : Colors.green,
                       ),
-                      tooltip: offer['isActive'] ? 'Deactivate' : 'Activate',
+                      tooltip: isActive ? 'Deactivate' : 'Activate',
                     ),
                     IconButton(
                       onPressed: () => _editOffer(offer),
@@ -843,7 +1236,7 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                       tooltip: 'Edit',
                     ),
                     IconButton(
-                      onPressed: () => _deleteOffer(offer['id']),
+                      onPressed: () => _deleteOffer(offer['_id'] ?? offer['id']),
                       icon: const Icon(Icons.delete, color: Colors.red),
                       tooltip: 'Delete',
                     ),

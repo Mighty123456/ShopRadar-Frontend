@@ -3,7 +3,6 @@ import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/animated_message_dialog.dart';
 import '../services/shop_service.dart';
-import 'unified_product_offer_screen.dart';
 
 class ProductManagementScreen extends StatefulWidget {
   const ProductManagementScreen({super.key});
@@ -110,132 +109,8 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     _showProductDialog();
   }
 
-  void _addProductWithOffer() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const UnifiedProductOfferScreen(),
-      ),
-    ).then((_) {
-      // Refresh the product list when returning from the unified screen
-      _loadProducts();
-    });
-  }
 
-  void _addOfferToExistingProduct() {
-    if (_products.isEmpty) {
-      MessageHelper.showAnimatedMessage(
-        context,
-        message: 'No products available. Please add a product first.',
-        type: MessageType.warning,
-        title: 'No Products',
-      );
-      return;
-    }
-    
-    _showProductSelectionDialog();
-  }
 
-  void _showProductSelectionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.8,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFF9800),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.local_offer,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Select Product for Offer',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.all(20),
-                  itemCount: _products.length,
-                  itemBuilder: (context, index) {
-                    final product = _products[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        leading: Icon(
-                          Icons.inventory,
-                          color: Colors.blue,
-                        ),
-                        title: Text(
-                          product['name'],
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text('${product['category']} - ₹${product['price']}'),
-                        trailing: const Icon(Icons.arrow_forward_ios),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          _navigateToOfferScreen(product);
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _navigateToOfferScreen(Map<String, dynamic> product) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedProductOfferScreen(selectedProduct: product),
-      ),
-    ).then((_) {
-      _loadProducts();
-    });
-  }
 
   void _editProduct(Map<String, dynamic> product) {
     setState(() {
@@ -615,8 +490,9 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         if (result['success'] == true) {
           if (mounted) {
             Navigator.of(context).pop();
-            _loadProducts(); // Refresh the product list
+            await _loadProducts(); // Refresh the product list
             
+            if (!mounted) return;
             MessageHelper.showAnimatedMessage(
               context,
               message: 'Product updated successfully!',
@@ -658,8 +534,9 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         if (result['success'] == true) {
           if (mounted) {
             Navigator.of(context).pop();
-            _loadProducts(); // Refresh the product list
+            await _loadProducts(); // Refresh the product list
             
+            if (!mounted) return;
             MessageHelper.showAnimatedMessage(
               context,
               message: 'Product added successfully!',
@@ -729,8 +606,9 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
       if (!mounted) return;
 
       if (result['success'] == true) {
-        _loadProducts(); // Refresh the product list
+        await _loadProducts(); // Refresh the product list
         
+        if (!mounted) return;
         MessageHelper.showAnimatedMessage(
           context,
           message: 'Product ${newStatus == 'active' ? 'activated' : 'deactivated'} successfully!',
@@ -758,10 +636,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   }
 
   void _deleteProduct(String productId) {
-    print('Delete button clicked for product ID: $productId');
+    debugPrint('Delete button clicked for product ID: $productId');
     
     // Validate product ID
-    if (productId == null || productId.isEmpty) {
+    if (productId.isEmpty) {
       MessageHelper.showAnimatedMessage(
         context,
         message: 'Invalid product ID. Cannot delete product.',
@@ -779,14 +657,14 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              print('Delete cancelled');
+              debugPrint('Delete cancelled');
               Navigator.of(context).pop();
             },
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
-              print('Delete confirmed for product ID: $productId');
+              debugPrint('Delete confirmed for product ID: $productId');
               Navigator.of(context).pop();
               _performDelete(productId);
             },
@@ -804,23 +682,43 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     });
     
     try {
-      print('Attempting to delete product with ID: $productId');
+      debugPrint('Attempting to delete product with ID: $productId');
       final result = await ShopService.deleteMyProduct(productId);
       
-      print('Delete result: $result');
+      debugPrint('Delete result: $result');
       
       if (!mounted) return;
       
-      if (result['success'] == true) {
-        _loadProducts(); // Refresh the product list
+      // Check if the result indicates success
+      if (result['success'] == true || result['success'] == 'true') {
+        // Always refresh the product list after delete attempt
+        await _loadProducts();
         
-        MessageHelper.showAnimatedMessage(
-          context,
-          message: 'Product deleted successfully!',
-          type: MessageType.success,
-          title: 'Product Deleted',
-        );
+        // Check if the product was actually deleted by looking at the updated list
+        final productStillExists = _products.any((product) => product['id'] == productId);
+        
+        if (!mounted) return;
+        
+        if (!productStillExists) {
+          // Product was successfully deleted
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: 'Product deleted successfully!',
+            type: MessageType.success,
+            title: 'Product Deleted',
+          );
+        } else {
+          // Product still exists, but API said it was successful
+          // This might be a timing issue, show a different message
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: 'Delete request sent. Please refresh if needed.',
+            type: MessageType.info,
+            title: 'Delete Requested',
+          );
+        }
       } else {
+        // API explicitly returned failure
         MessageHelper.showAnimatedMessage(
           context,
           message: result['message'] ?? 'Failed to delete product',
@@ -829,14 +727,19 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         );
       }
     } catch (e) {
-      print('Delete error: $e');
+      debugPrint('Delete error: $e');
       if (!mounted) return;
       
+      // Even if there's an error, try to refresh the list
+      // The product might have been deleted despite the error
+      await _loadProducts();
+      
+      if (!mounted) return;
       MessageHelper.showAnimatedMessage(
         context,
-        message: 'Error deleting product: ${e.toString()}',
-        type: MessageType.error,
-        title: 'Delete Error',
+        message: 'Delete operation completed. Please check if the product was removed.',
+        type: MessageType.info,
+        title: 'Delete Status',
       );
     } finally {
       if (mounted) {
@@ -864,6 +767,16 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                 children: [
                   Row(
                     children: [
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.arrow_back,
+                          color: Colors.black87,
+                          size: isTablet ? 28 : 24,
+                        ),
+                        tooltip: 'Back',
+                      ),
+                      SizedBox(width: isTablet ? 8 : 4),
                       Expanded(
                         child: Text(
                           'Product Management',
@@ -885,26 +798,6 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                           text: 'Add Product',
                           onPressed: _addNewProduct,
                           backgroundColor: const Color(0xFF2979FF),
-                        ),
-                      ),
-                      SizedBox(width: isTablet ? 16 : 12),
-                      Expanded(
-                        child: CustomButton(
-                          text: 'Add Product + Offer',
-                          onPressed: _addProductWithOffer,
-                          backgroundColor: const Color(0xFF4CAF50),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: isTablet ? 12 : 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: CustomButton(
-                          text: 'Add Offer to Existing Product',
-                          onPressed: _addOfferToExistingProduct,
-                          backgroundColor: const Color(0xFFFF9800),
                         ),
                       ),
                     ],

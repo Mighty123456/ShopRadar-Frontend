@@ -175,6 +175,16 @@ class _CustomerInteractionScreenState extends State<CustomerInteractionScreen> {
                 children: [
                   Row(
                     children: [
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.arrow_back,
+                          color: Colors.black87,
+                          size: isExtraLarge ? 28 : (isLarge ? 26 : (isMedium ? 24 : 20)),
+                        ),
+                        tooltip: 'Back',
+                      ),
+                      SizedBox(width: isExtraLarge ? 8 : (isLarge ? 6 : (isMedium ? 4 : 2))),
                       Expanded(
                         child: Text(
                           'Customer Reviews & Interactions',

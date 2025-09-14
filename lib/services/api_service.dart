@@ -69,4 +69,18 @@ class ApiService {
       throw Exception('Network error: $e');
     }
   }
+
+  static Future<http.Response> patch(String endpoint, [Map<String, dynamic>? data]) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.patch(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: headers,
+        body: data != null ? jsonEncode(data) : null,
+      ).timeout(const Duration(seconds: 30));
+      return response;
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
 } 

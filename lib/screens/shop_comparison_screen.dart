@@ -382,6 +382,11 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
         backgroundColor: const Color(0xFF2979FF),
         foregroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
         actions: [
           if (_selectedShops.length >= 2)
             TextButton(

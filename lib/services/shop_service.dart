@@ -472,39 +472,61 @@ class ShopService {
   static Future<Map<String, dynamic>> deleteMyProduct(String productId) async {
     try {
       debugPrint('Deleting product: $productId');
-      print('ShopService: Attempting to delete product with ID: $productId');
+      debugPrint('ShopService: Attempting to delete product with ID: $productId');
       
       final response = await ApiService.delete('/api/shops/products/$productId').timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          print('ShopService: Delete request timed out');
+          debugPrint('ShopService: Delete request timed out');
           throw TimeoutException('Request timed out', const Duration(seconds: 30));
         },
       );
 
       debugPrint('Delete product response status: ${response.statusCode}');
       debugPrint('Delete product response body: ${response.body}');
-      print('ShopService: Delete response status: ${response.statusCode}');
-      print('ShopService: Delete response body: ${response.body}');
+      debugPrint('ShopService: Delete response status: ${response.statusCode}');
+      debugPrint('ShopService: Delete response body: ${response.body}');
 
-      final data = jsonDecode(response.body);
-      
-      if (response.statusCode == 200) {
-        print('ShopService: Product deleted successfully');
+      // Handle different response scenarios
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('ShopService: Product deleted successfully');
+        
+        // Try to parse response body, but don't fail if it's empty
+        Map<String, dynamic> data = {};
+        try {
+          if (response.body.isNotEmpty) {
+            data = jsonDecode(response.body);
+          }
+        } catch (e) {
+          debugPrint('ShopService: Could not parse response body, but status indicates success');
+        }
+        
         return {
           'success': true,
           'message': data['message'] ?? 'Product deleted successfully',
         };
       } else {
-        print('ShopService: Delete failed with status: ${response.statusCode}');
+        debugPrint('ShopService: Delete failed with status: ${response.statusCode}');
+        debugPrint('ShopService: Response body: ${response.body}');
+        
+        // Try to parse error message
+        Map<String, dynamic> data = {};
+        try {
+          if (response.body.isNotEmpty) {
+            data = jsonDecode(response.body);
+          }
+        } catch (e) {
+          debugPrint('ShopService: Could not parse error response body');
+        }
+        
         return {
           'success': false,
-          'message': data['message'] ?? 'Failed to delete product',
+          'message': data['message'] ?? 'Failed to delete product (Status: ${response.statusCode})',
         };
       }
     } catch (e) {
       debugPrint('Delete product error: $e');
-      print('ShopService: Delete error: $e');
+      debugPrint('ShopService: Delete error: $e');
       return {
         'success': false,
         'message': 'Network error: ${e.toString()}',
@@ -565,6 +587,242 @@ class ShopService {
       return {
         'success': false,
         'message': 'Upload error: $e',
+      };
+    }
+  }
+
+  // ==================== OFFER MANAGEMENT ====================
+
+  // Get all offers for the shop
+  static Future<Map<String, dynamic>> getMyOffers({int page = 1, int limit = 10}) async {
+    try {
+      debugPrint('Fetching shop owner\'s offers...');
+      
+      final response = await ApiService.get('/api/offers?page=$page&limit=$limit').timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          debugPrint('Get my offers request timed out');
+          throw TimeoutException('Request timed out', const Duration(seconds: 30));
+        },
+      );
+
+      debugPrint('Get my offers response status: ${response.statusCode}');
+      debugPrint('Get my offers response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'data': data['data'],
+          'pagination': data['pagination'],
+        };
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Failed to fetch offers',
+        };
+      }
+    } catch (e) {
+      debugPrint('Get my offers error: $e');
+      return {
+        'success': false,
+        'message': 'Error fetching offers: $e',
+      };
+    }
+  }
+
+  // Create a new offer
+  static Future<Map<String, dynamic>> createOffer({
+    required String productId,
+    required String title,
+    required String description,
+    required String discountType,
+    required double discountValue,
+    required DateTime startDate,
+    required DateTime endDate,
+    int maxUses = 0,
+  }) async {
+    try {
+      debugPrint('Creating new offer...');
+      
+      final offerData = {
+        'productId': productId,
+        'title': title,
+        'description': description,
+        'discountType': discountType,
+        'discountValue': discountValue,
+        'startDate': startDate.toIso8601String(),
+        'endDate': endDate.toIso8601String(),
+        'maxUses': maxUses,
+      };
+
+      final response = await ApiService.post('/api/offers', offerData).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          debugPrint('Create offer request timed out');
+          throw TimeoutException('Request timed out', const Duration(seconds: 30));
+        },
+      );
+
+      debugPrint('Create offer response status: ${response.statusCode}');
+      debugPrint('Create offer response body: ${response.body}');
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Offer created successfully',
+          'data': data['data'],
+        };
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Failed to create offer',
+        };
+      }
+    } catch (e) {
+      debugPrint('Create offer error: $e');
+      return {
+        'success': false,
+        'message': 'Error creating offer: $e',
+      };
+    }
+  }
+
+  // Update an offer
+  static Future<Map<String, dynamic>> updateOffer({
+    required String offerId,
+    String? title,
+    String? description,
+    String? discountType,
+    double? discountValue,
+    DateTime? startDate,
+    DateTime? endDate,
+    int? maxUses,
+    String? status,
+  }) async {
+    try {
+      debugPrint('Updating offer: $offerId');
+      
+      final updateData = <String, dynamic>{};
+      if (title != null) updateData['title'] = title;
+      if (description != null) updateData['description'] = description;
+      if (discountType != null) updateData['discountType'] = discountType;
+      if (discountValue != null) updateData['discountValue'] = discountValue;
+      if (startDate != null) updateData['startDate'] = startDate.toIso8601String();
+      if (endDate != null) updateData['endDate'] = endDate.toIso8601String();
+      if (maxUses != null) updateData['maxUses'] = maxUses;
+      if (status != null) updateData['status'] = status;
+
+      final response = await ApiService.put('/api/offers/$offerId', updateData).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          debugPrint('Update offer request timed out');
+          throw TimeoutException('Request timed out', const Duration(seconds: 30));
+        },
+      );
+
+      debugPrint('Update offer response status: ${response.statusCode}');
+      debugPrint('Update offer response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Offer updated successfully',
+          'data': data['data'],
+        };
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Failed to update offer',
+        };
+      }
+    } catch (e) {
+      debugPrint('Update offer error: $e');
+      return {
+        'success': false,
+        'message': 'Error updating offer: $e',
+      };
+    }
+  }
+
+  // Delete an offer
+  static Future<Map<String, dynamic>> deleteOffer(String offerId) async {
+    try {
+      debugPrint('Deleting offer: $offerId');
+      
+      final response = await ApiService.delete('/api/offers/$offerId').timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          debugPrint('Delete offer request timed out');
+          throw TimeoutException('Request timed out', const Duration(seconds: 30));
+        },
+      );
+
+      debugPrint('Delete offer response status: ${response.statusCode}');
+      debugPrint('Delete offer response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Offer deleted successfully',
+        };
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Failed to delete offer',
+        };
+      }
+    } catch (e) {
+      debugPrint('Delete offer error: $e');
+      return {
+        'success': false,
+        'message': 'Error deleting offer: $e',
+      };
+    }
+  }
+
+  // Toggle offer status (active/inactive)
+  static Future<Map<String, dynamic>> toggleOfferStatus(String offerId) async {
+    try {
+      debugPrint('Toggling offer status: $offerId');
+      
+      final response = await ApiService.patch('/api/offers/$offerId/toggle-status').timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          debugPrint('Toggle offer status request timed out');
+          throw TimeoutException('Request timed out', const Duration(seconds: 30));
+        },
+      );
+
+      debugPrint('Toggle offer status response status: ${response.statusCode}');
+      debugPrint('Toggle offer status response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Offer status updated successfully',
+          'data': data['data'],
+        };
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Failed to toggle offer status',
+        };
+      }
+    } catch (e) {
+      debugPrint('Toggle offer status error: $e');
+      return {
+        'success': false,
+        'message': 'Error toggling offer status: $e',
       };
     }
   }

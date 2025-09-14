@@ -56,6 +56,15 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
           SliverAppBar(
             expandedHeight: isTablet ? 300 : (isLargeScreen ? 350 : 250),
             pinned: true,
+            leading: IconButton(
+              icon: Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                size: isTablet ? 24 : 20,
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+              tooltip: 'Back',
+            ),
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
                 fit: StackFit.expand,

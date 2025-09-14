@@ -346,6 +346,7 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
             size: isTablet ? 24 : 20,
           ),
           onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
         ),
       ),
       body: SingleChildScrollView(

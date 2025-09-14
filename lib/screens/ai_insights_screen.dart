@@ -20,6 +20,11 @@ class _AIInsightsScreenState extends State<AIInsightsScreen> {
         elevation: 0,
         title: const Text('AI Insights', style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
       ),
       body: Center(
         child: Padding(
