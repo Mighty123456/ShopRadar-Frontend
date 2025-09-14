@@ -188,11 +188,18 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 48, // Account for padding
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
               const SizedBox(height: 20),
               const Text(
                 'Verify Your Email',
@@ -213,61 +220,89 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               ),
               const SizedBox(height: 40),
               
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 45,
-                    child: TextField(
-                      controller: _otpControllers[index],
-                      focusNode: _focusNodes[index],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      maxLength: 1,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.grey),
+              // Responsive OTP input boxes
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final screenWidth = constraints.maxWidth;
+                  final boxWidth = (screenWidth - 48 - (5 * 8)) / 6; // 48 for padding, 5 gaps of 8px
+                  final boxSize = boxWidth.clamp(40.0, 50.0); // Min 40, max 50
+                  
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: List.generate(6, (index) {
+                      return SizedBox(
+                        width: boxSize,
+                        height: boxSize,
+                        child: TextField(
+                          controller: _otpControllers[index],
+                          focusNode: _focusNodes[index],
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          maxLength: 1,
+                          style: TextStyle(
+                            fontSize: boxSize * 0.4, // Responsive font size
+                            fontWeight: FontWeight.bold,
+                          ),
+                          decoration: InputDecoration(
+                            counterText: '',
+                            contentPadding: EdgeInsets.zero,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.grey),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.blue, width: 2),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.grey),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.red),
+                            ),
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          onChanged: (value) {
+                            if (value.isNotEmpty) {
+                              _onOTPChanged(index);
+                            } else if (value.isEmpty && index > 0) {
+                              // Move focus to previous box when deleting
+                              _focusNodes[index - 1].requestFocus();
+                            }
+                          },
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.blue, width: 2),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.grey),
-                        ),
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
-                      onChanged: (value) {
-                        if (value.isNotEmpty) {
-                          _onOTPChanged(index);
-                        }
-                      },
-                    ),
+                      );
+                    }),
                   );
-                }),
+                },
               ),
               
               const SizedBox(height: 40),
               
-              SizedBox(
-                width: double.infinity,
-                child: CustomButton(
-                  text: _isLoading ? 'Verifying...' : 'Verify Email',
-                  onPressed: _isLoading ? null : _verifyOTP,
-                  isLoading: _isLoading,
+              // Verify button with proper constraints
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: 50,
+                  maxHeight: 60,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: CustomButton(
+                    text: _isLoading ? 'Verifying...' : 'Verify Email',
+                    onPressed: _isLoading ? null : _verifyOTP,
+                    isLoading: _isLoading,
+                  ),
                 ),
               ),
               
               const SizedBox(height: 30),
+              
+              // Add flexible space to prevent overflow
+              const Spacer(),
               
               Center(
                 child: Column(
@@ -339,8 +374,12 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
