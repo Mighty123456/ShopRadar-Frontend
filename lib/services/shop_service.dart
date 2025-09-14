@@ -672,18 +672,21 @@ class ShopService {
       debugPrint('Create offer response status: ${response.statusCode}');
       debugPrint('Create offer response body: ${response.body}');
 
+      final data = jsonDecode(response.body);
+      debugPrint('Parsed offer response data: $data');
+      debugPrint('Offer response success field: ${data['success']}');
+      debugPrint('Offer response success type: ${data['success'].runtimeType}');
+
       if (response.statusCode == 201) {
-        final data = jsonDecode(response.body);
         return {
           'success': true,
           'message': data['message'] ?? 'Offer created successfully',
           'data': data['data'],
         };
       } else {
-        final error = jsonDecode(response.body);
         return {
           'success': false,
-          'message': error['message'] ?? 'Failed to create offer',
+          'message': data['message'] ?? 'Failed to create offer',
         };
       }
     } catch (e) {

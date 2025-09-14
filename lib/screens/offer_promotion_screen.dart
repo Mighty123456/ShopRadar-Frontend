@@ -39,6 +39,13 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload products when screen becomes active
+    _loadProducts();
+  }
+
+  @override
   void dispose() {
     _offerTitleController.dispose();
     _descriptionController.dispose();
@@ -88,18 +95,47 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
 
   Future<void> _loadProducts() async {
     try {
-      final result = await ShopService.getMyProducts();
+      debugPrint('Loading products for offer creation...');
+      // Load all products regardless of status for offer creation
+      final result = await ShopService.getMyProducts(
+        status: 'all', // Include all statuses
+        limit: 100, // Load more products
+      );
+      debugPrint('Products result: $result');
+      
       if (result['success'] == true) {
         setState(() {
-          _products = List<Map<String, dynamic>>.from(result['data'] ?? []);
+          _products = List<Map<String, dynamic>>.from(result['products'] ?? []);
         });
+        debugPrint('Loaded ${_products.length} products for offers');
+      } else {
+        debugPrint('Failed to load products: ${result['message']}');
+        if (mounted) {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: result['message'] ?? 'Failed to load products',
+            type: MessageType.error,
+            title: 'Load Error',
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error loading products: $e');
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error loading products: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Load Error',
+        );
+      }
     }
   }
 
   void _addNewOffer() {
+    debugPrint('Attempting to add new offer. Products count: ${_products.length}');
+    debugPrint('Products list: $_products');
+    
     if (_products.isEmpty) {
       MessageHelper.showAnimatedMessage(
         context,
@@ -752,6 +788,10 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
           maxUses: int.parse(_maxUsesController.text),
         );
 
+        debugPrint('Offer creation result: $result');
+        debugPrint('Success value: ${result['success']}');
+        debugPrint('Success type: ${result['success'].runtimeType}');
+
         if (mounted) {
           if (result['success'] == true) {
             Navigator.of(context).pop();
@@ -937,6 +977,18 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                           text: 'Create Offer',
                           onPressed: _addNewOffer,
                         ),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        onPressed: () async {
+                          await _loadProducts();
+                          await _loadOffers();
+                        },
+                        icon: const Icon(
+                          Icons.refresh,
+                          color: Colors.blue,
+                        ),
+                        tooltip: 'Refresh Products',
                       ),
                     ],
                   ),
