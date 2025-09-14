@@ -10,12 +10,12 @@ class NetworkConfig {
   static String? _currentEnvironment;
   
   static Map<String, String> baseUrls = {
-    // Use local IP for emulator (faster for development)
-    emulator: 'http://192.168.31.169:3000',
-    // Prefer hosted API on physical devices so it works off your LAN
+    // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
+    emulator: 'http://10.0.2.2:3000',
+    // Use hosted API on physical devices so it works off your LAN
     physicalDevice: 'https://shopradarbackend.onrender.com',
-    // Use local IP for simulator (faster for development)
-    simulator: 'http://192.168.31.169:3000',
+    // Use localhost for simulator (iOS simulator can access localhost directly)
+    simulator: 'http://localhost:3000',
   };
   
   static const List<String> networkPatterns = [
@@ -68,23 +68,27 @@ class NetworkConfig {
       if (Platform.isAndroid) {
         final isEmulator = await _checkIfEmulator();
         _currentEnvironment = isEmulator ? emulator : physicalDevice;
-        debugPrint('Android detected - Environment: $_currentEnvironment');
+        debugPrint('🔍 Android detected - Environment: $_currentEnvironment');
+        debugPrint('🔍 Emulator check result: $isEmulator');
       } else if (Platform.isIOS) {
         _currentEnvironment = simulator;
-        debugPrint('iOS detected - Environment: $_currentEnvironment');
+        debugPrint('🔍 iOS detected - Environment: $_currentEnvironment');
       } else {
         _currentEnvironment = physicalDevice;
-        debugPrint('Other platform detected - Environment: $_currentEnvironment');
+        debugPrint('🔍 Other platform detected - Environment: $_currentEnvironment');
       }
     } catch (e) {
-      debugPrint('Environment detection error: $e - Defaulting to physical device');
+      debugPrint('❌ Environment detection error: $e - Defaulting to physical device');
       _currentEnvironment = physicalDevice;
     }
   }
   
   static Future<bool> _checkIfEmulator() async {
     try {
-      final response = await http.get(Uri.parse('${baseUrls[emulator]}/health'))
+      // For emulator, try 10.0.2.2 first (Android emulator's special IP to access host machine)
+      final emulatorUrl = 'http://10.0.2.2:3000/health';
+      
+      final response = await http.get(Uri.parse(emulatorUrl))
           .timeout(const Duration(seconds: 3));
       return response.statusCode == 200;
     } catch (e) {
@@ -96,9 +100,9 @@ class NetworkConfig {
     try {
       // Test relevant base URLs in parallel for faster discovery
       final candidates = <String>[
-        baseUrls[emulator]!,
-        baseUrls[simulator]!,
-        baseUrls[physicalDevice]!,
+        baseUrls[emulator]!, // localhost:3000 for emulator
+        baseUrls[simulator]!, // localhost:3000 for simulator
+        baseUrls[physicalDevice]!, // hosted URL for physical device
       ];
 
       final futures = candidates.map((baseUrl) => 
@@ -208,38 +212,38 @@ class NetworkConfig {
   
   static Future<bool> _testConnection(String url) async {
     try {
-      debugPrint('Testing connection to: $url');
+      debugPrint('🔍 Testing connection to: $url');
       // Render can cold-start; allow longer timeout for https hosts
       final isHosted = url.startsWith('https://');
       final response = await http.get(Uri.parse('$url/health'))
           .timeout(Duration(seconds: isHosted ? 20 : 10));
       
       if (response.statusCode == 200) {
-        debugPrint('Connection successful to: $url');
+        debugPrint('✅ Connection successful to: $url');
         return true;
       } else {
-        debugPrint('Connection failed to: $url - Status: ${response.statusCode}');
+        debugPrint('❌ Connection failed to: $url - Status: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('Connection error to: $url - $e');
+      debugPrint('❌ Connection error to: $url - $e');
     }
     return false;
   }
   
   static String _getFallbackUrl() {
     if (_currentEnvironment == emulator) {
-      debugPrint('Using emulator fallback URL: ${baseUrls[emulator]}');
+      debugPrint('🔧 Using emulator fallback URL: ${baseUrls[emulator]} (10.0.2.2:3000)');
       return baseUrls[emulator]!;
     } else if (_currentEnvironment == simulator) {
-      debugPrint('Using simulator fallback URL: ${baseUrls[simulator]}');
+      debugPrint('🔧 Using simulator fallback URL: ${baseUrls[simulator]} (localhost:3000)');
       return baseUrls[simulator]!;
     } else {
       // For physical device, try discovered IPs first, then your specific IP
       if (_discoveredIPs.isNotEmpty) {
-        debugPrint('Using discovered IP: ${_discoveredIPs.first}');
+        debugPrint('🔧 Using discovered IP: ${_discoveredIPs.first}');
         return _discoveredIPs.first;
       } else {
-        debugPrint('Using physical device fallback URL: ${baseUrls[physicalDevice]}');
+        debugPrint('🔧 Using physical device fallback URL: ${baseUrls[physicalDevice]}');
         return baseUrls[physicalDevice]!;
       }
     }
@@ -247,10 +251,12 @@ class NetworkConfig {
   
   static String get baseUrl {
     if (_workingBaseUrl != null) {
+      debugPrint('🌐 Using working base URL: $_workingBaseUrl');
       return _workingBaseUrl!;
     }
     
     final url = _getFallbackUrl();
+    debugPrint('🌐 Using fallback base URL: $url');
     return url;
   }
   
