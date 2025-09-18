@@ -199,18 +199,25 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenWidth = constraints.maxWidth;
+            final titleSize = screenWidth < 360
+                ? 24.0
+                : (screenWidth < 420 ? 26.0 : 28.0);
+            final subtitleSize = screenWidth < 360 ? 14.0 : 16.0;
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   'Reset Password',
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: titleSize,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
                   ),
@@ -218,8 +225,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 const SizedBox(height: 12),
                 Text(
                   'Enter the verification code sent to\n${widget.email} and your new password.',
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: TextStyle(
+                    fontSize: subtitleSize,
                     color: Colors.grey,
                     height: 1.5,
                   ),
@@ -236,47 +243,60 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(6, (index) {
-                    return SizedBox(
-                      width: 45,
-                      child: TextField(
-                        controller: _otpControllers[index],
-                        focusNode: _focusNodes[index],
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        maxLength: 1,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        decoration: InputDecoration(
-                          counterText: '',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.grey),
+                LayoutBuilder(
+                  builder: (context, innerConstraints) {
+                    final availableWidth = innerConstraints.maxWidth;
+                    final idealBoxWidth = (availableWidth - (5 * 8)) / 6;
+                    final boxSize = idealBoxWidth.clamp(44.0, 56.0);
+                    return Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      runAlignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 12,
+                      children: List.generate(6, (index) {
+                        return SizedBox(
+                          width: boxSize,
+                          height: boxSize,
+                          child: TextField(
+                            controller: _otpControllers[index],
+                            focusNode: _focusNodes[index],
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            maxLength: 1,
+                            style: TextStyle(
+                              fontSize: boxSize * 0.4,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            decoration: InputDecoration(
+                              counterText: '',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Colors.grey),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Colors.blue, width: 2),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Colors.grey),
+                              ),
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            onChanged: (value) {
+                              if (value.isNotEmpty) {
+                                _onOTPChanged(index);
+                              } else if (value.isEmpty && index > 0) {
+                                _focusNodes[index - 1].requestFocus();
+                              }
+                            },
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.blue, width: 2),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.grey),
-                          ),
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        onChanged: (value) {
-                          if (value.isNotEmpty) {
-                            _onOTPChanged(index);
-                          }
-                        },
-                      ),
+                        );
+                      }),
                     );
-                  }),
+                  },
                 ),
                 
                 const SizedBox(height: 30),
@@ -406,6 +426,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               ],
             ),
           ),
+            );
+          },
         ),
       ),
     );

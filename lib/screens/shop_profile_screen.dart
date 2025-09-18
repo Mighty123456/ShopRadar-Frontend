@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/animated_message_dialog.dart';
+import '../services/shop_service.dart';
 
 class ShopProfileScreen extends StatefulWidget {
   const ShopProfileScreen({super.key});
@@ -61,14 +62,48 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
     super.dispose();
   }
 
-  void _loadShopData() {
-    // TODO: Load actual shop data from backend
-    _shopNameController.text = 'TechMart Electronics';
-    _categoryController.text = 'Electronics';
-    _addressController.text = '123 Main Street, Downtown, City';
-    _phoneController.text = '+1 (555) 123-4567';
-    _emailController.text = 'contact@techmart.com';
-    _descriptionController.text = 'Your one-stop shop for all electronics needs. We offer the latest gadgets, computers, and accessories with competitive prices and excellent customer service.';
+  Future<void> _loadShopData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final result = await ShopService.getMyShop();
+      if (!mounted) return;
+      if (result['success'] == true && result['shop'] != null) {
+        final shop = result['shop'] as Map<String, dynamic>;
+        _shopNameController.text = shop['shopName']?.toString() ?? '';
+        _addressController.text = shop['address']?.toString() ?? '';
+        _phoneController.text = shop['phone']?.toString() ?? '';
+        // Email is from owner relation if populated
+        final owner = shop['ownerId'];
+        if (owner is Map && owner['email'] != null) {
+          _emailController.text = owner['email'].toString();
+        }
+        // Optional fields if your schema includes them
+        _categoryController.text = shop['category']?.toString() ?? _categoryController.text;
+        _descriptionController.text = shop['description']?.toString() ?? _descriptionController.text;
+      } else {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: result['message'] ?? 'Failed to load shop details',
+          type: MessageType.error,
+          title: 'Load Failed',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'Error loading shop: ${e.toString()}',
+        type: MessageType.error,
+        title: 'Load Error',
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -79,19 +114,28 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
     });
 
     try {
-      // TODO: Implement actual save to backend
-      await Future.delayed(const Duration(seconds: 2)); // Simulate API call
-      
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        
+      final result = await ShopService.updateMyShop(
+        shopName: _shopNameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        address: _addressController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      if (result['success'] == true) {
         MessageHelper.showAnimatedMessage(
           context,
-          message: 'Shop profile updated successfully!',
+          message: result['message'] ?? 'Shop profile updated successfully!',
           type: MessageType.success,
           title: 'Profile Updated',
+        );
+      } else {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: result['message'] ?? 'Failed to update profile. Please try again.',
+          type: MessageType.error,
+          title: 'Update Failed',
         );
       }
     } catch (e) {
@@ -102,7 +146,7 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
         
         MessageHelper.showAnimatedMessage(
           context,
-          message: 'Failed to update profile. Please try again.',
+          message: 'Failed to update profile. Please try again. ${e.toString()}',
           type: MessageType.error,
           title: 'Update Failed',
         );

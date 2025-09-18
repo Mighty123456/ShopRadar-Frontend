@@ -381,9 +381,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
               ),
               const SizedBox(height: 16),
               
-              Row(
-                children: [
-                  Expanded(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isStack = constraints.maxWidth < 380;
+                  final brandField = Expanded(
                     child: CustomTextField(
                       controller: _brandController,
                       labelText: 'Brand',
@@ -395,16 +396,23 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                         return null;
                       },
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
+                  );
+                  final modelField = Expanded(
                     child: CustomTextField(
                       controller: _modelController,
                       labelText: 'Model / Variant',
                       hintText: 'e.g., Boat T800, iPhone 15 Pro',
                     ),
-                  ),
-                ],
+                  );
+                  final children = <Widget>[
+                    brandField,
+                    isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                    modelField,
+                  ];
+                  return isStack
+                      ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                      : Row(children: children);
+                },
               ),
               const SizedBox(height: 16),
               
@@ -467,9 +475,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
               ),
               const SizedBox(height: 16),
               
-              Row(
-                children: [
-                  Expanded(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isStack = constraints.maxWidth < 380;
+                  final priceField = Expanded(
                     child: CustomTextField(
                       controller: _priceController,
                       labelText: 'Original Price (₹)',
@@ -485,9 +494,8 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                         return null;
                       },
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
+                  );
+                  final stockField = Expanded(
                     child: CustomTextField(
                       controller: _stockController,
                       labelText: 'Stock Quantity',
@@ -503,15 +511,24 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                         return null;
                       },
                     ),
-                  ),
-                ],
+                  );
+                  final children = <Widget>[
+                    priceField,
+                    isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                    stockField,
+                  ];
+                  return isStack
+                      ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                      : Row(children: children);
+                },
               ),
               const SizedBox(height: 16),
               
               // Unit Type and Availability Status
-              Row(
-                children: [
-                  Expanded(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isStack = constraints.maxWidth < 380;
+                  final unitType = Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -549,9 +566,8 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
+                  );
+                  final availability = Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -585,8 +601,16 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                         ),
                       ],
                     ),
-                  ),
-                ],
+                  );
+                  final children = <Widget>[
+                    unitType,
+                    isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                    availability,
+                  ];
+                  return isStack
+                      ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                      : Row(children: children);
+                },
               ),
               const SizedBox(height: 16),
               
@@ -844,9 +868,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                 const SizedBox(height: 16),
                 
                 // Discount Type and Value
-                Row(
-                  children: [
-                    Expanded(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isStack = constraints.maxWidth < 380;
+                    final typeField = Expanded(
                       flex: 2,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -887,9 +912,8 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
+                    );
+                    final valueField = Expanded(
                       flex: 1,
                       child: CustomTextField(
                         controller: _discountController,
@@ -906,11 +930,19 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                           return null;
                         },
                         onChanged: (value) {
-                          setState(() {}); // Trigger rebuild to update final price
+                          setState(() {});
                         },
                       ),
-                    ),
-                  ],
+                    );
+                    final children = <Widget>[
+                      typeField,
+                      isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                      valueField,
+                    ];
+                    return isStack
+                        ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                        : Row(children: children);
+                  },
                 ),
                 const SizedBox(height: 16),
                 
@@ -959,9 +991,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                 const SizedBox(height: 16),
                 
                 // Offer Dates
-                Row(
-                  children: [
-                    Expanded(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isStack = constraints.maxWidth < 380;
+                    final fromField = Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1001,9 +1034,8 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
+                    );
+                    final toField = Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1043,8 +1075,16 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                    );
+                    final children = <Widget>[
+                      fromField,
+                      isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                      toField,
+                    ];
+                    return isStack
+                        ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                        : Row(children: children);
+                  },
                 ),
                 const SizedBox(height: 16),
                 

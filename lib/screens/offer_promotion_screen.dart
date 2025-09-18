@@ -193,7 +193,7 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
             maxHeight: MediaQuery.of(context).size.height * 0.8,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             children: [
               Container(
                 padding: const EdgeInsets.all(20),
@@ -311,7 +311,7 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
             maxWidth: isTablet ? 600 : double.infinity,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             children: [
               Container(
                 padding: EdgeInsets.all(isTablet ? 24 : 20),
@@ -446,70 +446,83 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                         ),
                         const SizedBox(height: 16),
                         
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isStack = constraints.maxWidth < 380;
+                            final Widget typeField = Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Discount Type',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: _selectedType,
+                                      isExpanded: true,
+                                      hint: const Text('Select type'),
+                                      items: const [
+                                        DropdownMenuItem(value: 'Percentage', child: Text('Percentage (%)')),
+                                        DropdownMenuItem(value: 'Fixed Amount', child: Text('Fixed Amount (\$)')),
+                                      ],
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _selectedType = value!;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                            final Widget valueField = CustomTextField(
+                              controller: _discountController,
+                              labelText: _selectedType == 'Percentage' ? 'Discount (%)' : 'Amount (\$)',
+                              hintText: _selectedType == 'Percentage' ? '20' : '10',
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter value';
+                                }
+                                final val = double.tryParse(value);
+                                if (val == null || val <= 0) {
+                                  return 'Please enter valid value';
+                                }
+                                if (_selectedType == 'Percentage' && val > 100) {
+                                  return 'Percentage cannot exceed 100%';
+                                }
+                                return null;
+                              },
+                            );
+                            if (isStack) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  const Text(
-                                    'Discount Type',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: _selectedType,
-                                        isExpanded: true,
-                                        hint: const Text('Select type'),
-                                        items: const [
-                                          DropdownMenuItem(value: 'Percentage', child: Text('Percentage (%)')),
-                                          DropdownMenuItem(value: 'Fixed Amount', child: Text('Fixed Amount (\$)')),
-                                        ],
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _selectedType = value!;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                  ),
+                                  typeField,
+                                  const SizedBox(height: 16),
+                                  valueField,
                                 ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomTextField(
-                                controller: _discountController,
-                                labelText: _selectedType == 'Percentage' ? 'Discount (%)' : 'Amount (\$)',
-                                hintText: _selectedType == 'Percentage' ? '20' : '10',
-                                keyboardType: TextInputType.number,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter value';
-                                  }
-                                  final val = double.tryParse(value);
-                                  if (val == null || val <= 0) {
-                                    return 'Please enter valid value';
-                                  }
-                                  if (_selectedType == 'Percentage' && val > 100) {
-                                    return 'Percentage cannot exceed 100%';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                Expanded(child: typeField),
+                                const SizedBox(width: 16),
+                                Expanded(child: valueField),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 16),
                         
@@ -554,106 +567,119 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
                         ),
                         const SizedBox(height: 16),
                         
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isStack = constraints.maxWidth < 380;
+                            final Widget startField = Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Start Date',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  onTap: () async {
+                                    final date = await showDatePicker(
+                                      context: context,
+                                      initialDate: _startDate,
+                                      firstDate: DateTime.now(),
+                                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                                    );
+                                    if (date != null) {
+                                      setState(() {
+                                        _startDate = date;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, color: Colors.grey[600]),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${_startDate.day}/${_startDate.month}/${_startDate.year}',
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                            final Widget endField = Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'End Date',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  onTap: () async {
+                                    final date = await showDatePicker(
+                                      context: context,
+                                      initialDate: _endDate,
+                                      firstDate: _startDate,
+                                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                                    );
+                                    if (date != null) {
+                                      setState(() {
+                                        _endDate = date;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, color: Colors.grey[600]),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${_endDate.day}/${_endDate.month}/${_endDate.year}',
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                            if (isStack) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  const Text(
-                                    'Start Date',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  InkWell(
-                                    onTap: () async {
-                                      final date = await showDatePicker(
-                                        context: context,
-                                        initialDate: _startDate,
-                                        firstDate: DateTime.now(),
-                                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                                      );
-                                      if (date != null) {
-                                        setState(() {
-                                          _startDate = date;
-                                        });
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: Colors.grey),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.calendar_today, color: Colors.grey[600]),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            '${_startDate.day}/${_startDate.month}/${_startDate.year}',
-                                            style: const TextStyle(fontSize: 14),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
+                                  startField,
+                                  const SizedBox(height: 16),
+                                  endField,
                                 ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'End Date',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  InkWell(
-                                    onTap: () async {
-                                      final date = await showDatePicker(
-                                        context: context,
-                                        initialDate: _endDate,
-                                        firstDate: _startDate,
-                                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                                      );
-                                      if (date != null) {
-                                        setState(() {
-                                          _endDate = date;
-                                        });
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: Colors.grey),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.calendar_today, color: Colors.grey[600]),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            '${_endDate.day}/${_endDate.month}/${_endDate.year}',
-                                            style: const TextStyle(fontSize: 14),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                Expanded(child: startField),
+                                const SizedBox(width: 16),
+                                Expanded(child: endField),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 16),
                         

@@ -200,9 +200,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                         ),
                         const SizedBox(height: 16),
                         
-                        Row(
-                          children: [
-                            Expanded(
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isStack = constraints.maxWidth < 380;
+                            final brandField = Expanded(
                               child: CustomTextField(
                                 controller: _brandController,
                                 labelText: 'Brand',
@@ -214,16 +215,23 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                                   return null;
                                 },
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
+                            );
+                            final modelField = Expanded(
                               child: CustomTextField(
                                 controller: _modelController,
                                 labelText: 'Model / Variant',
                                 hintText: 'e.g., Boat T800, iPhone 15 Pro',
                               ),
-                            ),
-                          ],
+                            );
+                            final children = <Widget>[
+                              brandField,
+                              isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                              modelField,
+                            ];
+                            return isStack
+                                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                                : Row(children: children);
+                          },
                         ),
                         const SizedBox(height: 16),
                         
@@ -295,9 +303,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                         ),
                         const SizedBox(height: 16),
                         
-                        Row(
-                          children: [
-                            Expanded(
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isStack = constraints.maxWidth < 380;
+                            final priceField = Expanded(
                               child: CustomTextField(
                                 controller: _priceController,
                                 labelText: 'Original Price (₹)',
@@ -313,9 +322,8 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                                   return null;
                                 },
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
+                            );
+                            final stockField = Expanded(
                               child: CustomTextField(
                                 controller: _stockController,
                                 labelText: 'Stock Quantity',
@@ -331,15 +339,24 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                                   return null;
                                 },
                               ),
-                            ),
-                          ],
+                            );
+                            final children = <Widget>[
+                              priceField,
+                              isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                              stockField,
+                            ];
+                            return isStack
+                                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                                : Row(children: children);
+                          },
                         ),
                         const SizedBox(height: 16),
                         
                         // Unit Type and Availability Status
-                        Row(
-                          children: [
-                            Expanded(
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isStack = constraints.maxWidth < 380;
+                            final unitType = Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -381,9 +398,8 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                                   ),
                                 ],
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
+                            );
+                            final availability = Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -421,8 +437,16 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
+                            );
+                            final children = <Widget>[
+                              unitType,
+                              isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                              availability,
+                            ];
+                            return isStack
+                                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                                : Row(children: children);
+                          },
                         ),
                         const SizedBox(height: 24),
                         

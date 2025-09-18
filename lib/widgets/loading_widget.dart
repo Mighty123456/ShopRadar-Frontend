@@ -151,9 +151,9 @@ class _LoadingWidgetState extends State<LoadingWidget>
 
             const SizedBox(height: 20),
             
-            // Dots animation
-            SizedBox(
-              width: 40, // Fixed width to prevent overflow
+            // Dots animation (scale down to fit tiny widths)
+            FittedBox(
+              fit: BoxFit.scaleDown,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
@@ -166,12 +166,12 @@ class _LoadingWidgetState extends State<LoadingWidget>
                       final scale = 0.5 + (0.5 * (1 - (animationValue - 0.5).abs() * 2));
                       
                       return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 2), // Reduced margin
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
                         child: Transform.scale(
                           scale: scale,
                           child: Container(
-                            width: 6, // Reduced size
-                            height: 6, // Reduced size
+                            width: 6,
+                            height: 6,
                             decoration: BoxDecoration(
                               color: primaryColor,
                               shape: BoxShape.circle,

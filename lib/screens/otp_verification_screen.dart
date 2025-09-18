@@ -190,6 +190,11 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final screenWidth = constraints.maxWidth;
+            final titleSize = screenWidth < 360
+                ? 24.0
+                : (screenWidth < 420 ? 26.0 : 28.0);
+            final subtitleSize = screenWidth < 360 ? 14.0 : 16.0;
             return SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: ConstrainedBox(
@@ -201,10 +206,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'Verify Your Email',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: titleSize,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
                 ),
@@ -212,8 +217,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               const SizedBox(height: 12),
               Text(
                 'We\'ve sent a 6-digit verification code to\n${widget.email}',
-                style: const TextStyle(
-                  fontSize: 16,
+                style: TextStyle(
+                  fontSize: subtitleSize,
                   color: Colors.grey,
                   height: 1.5,
                 ),
@@ -223,12 +228,16 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               // Responsive OTP input boxes
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final screenWidth = constraints.maxWidth;
-                  final boxWidth = (screenWidth - 48 - (5 * 8)) / 6; // 48 for padding, 5 gaps of 8px
-                  final boxSize = boxWidth.clamp(40.0, 50.0); // Min 40, max 50
+                  final availableWidth = constraints.maxWidth;
+                  // Aim for 6 in a row on roomy screens; wrap to new lines on compact
+                  final idealBoxWidth = (availableWidth - (5 * 8)) / 6;
+                  final boxSize = idealBoxWidth.clamp(44.0, 56.0);
                   
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  return Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    runAlignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 12,
                     children: List.generate(6, (index) {
                       return SizedBox(
                         width: boxSize,
@@ -240,7 +249,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                           textAlign: TextAlign.center,
                           maxLength: 1,
                           style: TextStyle(
-                            fontSize: boxSize * 0.4, // Responsive font size
+                            fontSize: boxSize * 0.4,
                             fontWeight: FontWeight.bold,
                           ),
                           decoration: InputDecoration(
@@ -270,7 +279,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                             if (value.isNotEmpty) {
                               _onOTPChanged(index);
                             } else if (value.isEmpty && index > 0) {
-                              // Move focus to previous box when deleting
                               _focusNodes[index - 1].requestFocus();
                             }
                           },
