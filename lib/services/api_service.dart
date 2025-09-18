@@ -22,7 +22,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl$endpoint'),
         headers: headers,
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 45));
       return response;
     } catch (e) {
       throw Exception('Network error: $e');
@@ -36,7 +36,7 @@ class ApiService {
         Uri.parse('$baseUrl$endpoint'),
         headers: headers,
         body: jsonEncode(data),
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 45));
       return response;
     } catch (e) {
       throw Exception('Network error: $e');
@@ -50,7 +50,7 @@ class ApiService {
         Uri.parse('$baseUrl$endpoint'),
         headers: headers,
         body: jsonEncode(data),
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 45));
       return response;
     } catch (e) {
       throw Exception('Network error: $e');
@@ -63,7 +63,7 @@ class ApiService {
       final response = await http.delete(
         Uri.parse('$baseUrl$endpoint'),
         headers: headers,
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 45));
       return response;
     } catch (e) {
       throw Exception('Network error: $e');
@@ -77,7 +77,7 @@ class ApiService {
         Uri.parse('$baseUrl$endpoint'),
         headers: headers,
         body: data != null ? jsonEncode(data) : null,
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 45));
       return response;
     } catch (e) {
       throw Exception('Network error: $e');

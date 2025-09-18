@@ -188,23 +188,21 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         ),
       ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final screenWidth = constraints.maxWidth;
+        child: Builder(
+          builder: (context) {
+            final screenWidth = MediaQuery.of(context).size.width;
+            final horizontalPadding = 24.0;
+            final contentWidth = screenWidth - (horizontalPadding * 2);
             final titleSize = screenWidth < 360
                 ? 24.0
                 : (screenWidth < 420 ? 26.0 : 28.0);
             final subtitleSize = screenWidth < 360 ? 14.0 : 16.0;
             return SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 48, // Account for padding
-                ),
-                child: IntrinsicHeight(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
               const SizedBox(height: 20),
               Text(
                 'Verify Your Email',
@@ -226,13 +224,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               const SizedBox(height: 40),
               
               // Responsive OTP input boxes
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final availableWidth = constraints.maxWidth;
-                  // Aim for 6 in a row on roomy screens; wrap to new lines on compact
-                  final idealBoxWidth = (availableWidth - (5 * 8)) / 6;
+              Builder(
+                builder: (context) {
+                  final idealBoxWidth = (contentWidth - (5 * 8)) / 6;
                   final boxSize = idealBoxWidth.clamp(44.0, 56.0);
-                  
                   return Wrap(
                     alignment: WrapAlignment.spaceBetween,
                     runAlignment: WrapAlignment.center,
@@ -292,25 +287,19 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               const SizedBox(height: 40),
               
               // Verify button with proper constraints
-              ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minHeight: 50,
-                  maxHeight: 60,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: CustomButton(
-                    text: _isLoading ? 'Verifying...' : 'Verify Email',
-                    onPressed: _isLoading ? null : _verifyOTP,
-                    isLoading: _isLoading,
-                  ),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: CustomButton(
+                  text: _isLoading ? 'Verifying...' : 'Verify Email',
+                  onPressed: _isLoading ? null : _verifyOTP,
+                  isLoading: _isLoading,
                 ),
               ),
               
               const SizedBox(height: 30),
               
-              // Add flexible space to prevent overflow
-              const Spacer(),
+              const SizedBox(height: 16),
               
               Center(
                 child: Column(
@@ -382,9 +371,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                   ),
                 ),
               ),
-                    ],
-                  ),
-                ),
+                ],
               ),
             );
           },

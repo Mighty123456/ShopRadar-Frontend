@@ -381,9 +381,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
               ),
               const SizedBox(height: 16),
               
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isStack = constraints.maxWidth < 380;
+              Builder(
+                builder: (context) {
+                  final screenWidth = MediaQuery.of(context).size.width;
+                  final isStack = screenWidth < 380;
                   final brandField = Expanded(
                     child: CustomTextField(
                       controller: _brandController,
@@ -475,9 +476,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
               ),
               const SizedBox(height: 16),
               
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isStack = constraints.maxWidth < 380;
+              Builder(
+                builder: (context) {
+                  final screenWidth = MediaQuery.of(context).size.width;
+                  final isStack = screenWidth < 380;
                   final priceField = Expanded(
                     child: CustomTextField(
                       controller: _priceController,
@@ -525,9 +527,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
               const SizedBox(height: 16),
               
               // Unit Type and Availability Status
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isStack = constraints.maxWidth < 380;
+              Builder(
+                builder: (context) {
+                  final screenWidth = MediaQuery.of(context).size.width;
+                  final isStack = screenWidth < 380;
                   final unitType = Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -868,9 +871,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                 const SizedBox(height: 16),
                 
                 // Discount Type and Value
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isStack = constraints.maxWidth < 380;
+                Builder(
+                  builder: (context) {
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final isStack = screenWidth < 380;
                     final typeField = Expanded(
                       flex: 2,
                       child: Column(
@@ -991,9 +995,10 @@ class _UnifiedProductOfferScreenState extends State<UnifiedProductOfferScreen> {
                 const SizedBox(height: 16),
                 
                 // Offer Dates
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isStack = constraints.maxWidth < 380;
+                Builder(
+                  builder: (context) {
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final isStack = screenWidth < 380;
                     final fromField = Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

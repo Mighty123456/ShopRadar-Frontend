@@ -25,9 +25,12 @@ import 'screens/search_results_screen.dart';
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-  // Initialize network discovery so physical devices can reach your backend automatically
-  await NetworkConfig.initialize();
+  // Force hosted backend on physical devices and don't block startup
+  NetworkConfig.setEnvironment(NetworkConfig.physicalDevice);
   runApp(const ShopRadarApp());
+  // Fire-and-forget network initialization
+  // ignore: unawaited_futures
+  NetworkConfig.initialize();
 }
 
 class ShopRadarApp extends StatefulWidget {

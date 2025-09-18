@@ -42,14 +42,14 @@ class NetworkConfig {
     
     try {
       await _detectEnvironment().timeout(
-        const Duration(seconds: 10),
+        const Duration(seconds: 3),
         onTimeout: () {
           _currentEnvironment = physicalDevice;
         },
       );
       
       await _comprehensiveNetworkDiscovery().timeout(
-        const Duration(seconds: 20),
+        const Duration(seconds: 8),
         onTimeout: () {
           _workingBaseUrl = _getFallbackUrl();
         },
@@ -107,7 +107,7 @@ class NetworkConfig {
 
       final futures = candidates.map((baseUrl) => 
         _testConnection(baseUrl).timeout(
-          const Duration(seconds: 10),
+          const Duration(seconds: 3),
           onTimeout: () => false,
         ).then((isWorking) => isWorking ? baseUrl : null)
       );
@@ -124,12 +124,12 @@ class NetworkConfig {
       if (_currentEnvironment != physicalDevice) {
         await Future.any([
           _discoverNetworkIPs().timeout(
-            const Duration(seconds: 15),
+            const Duration(seconds: 6),
             onTimeout: () {
               return;
             },
           ),
-          Future.delayed(const Duration(seconds: 15)).then((_) {
+          Future.delayed(const Duration(seconds: 6)).then((_) {
             return;
           }),
         ]);
@@ -216,7 +216,7 @@ class NetworkConfig {
       // Render can cold-start; allow longer timeout for https hosts
       final isHosted = url.startsWith('https://');
       final response = await http.get(Uri.parse('$url/health'))
-          .timeout(Duration(seconds: isHosted ? 20 : 10));
+          .timeout(Duration(seconds: isHosted ? 12 : 5));
       
       if (response.statusCode == 200) {
         debugPrint('✅ Connection successful to: $url');

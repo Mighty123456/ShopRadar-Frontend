@@ -200,9 +200,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                         ),
                         const SizedBox(height: 16),
                         
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isStack = constraints.maxWidth < 380;
+                        Builder(
+                          builder: (context) {
+                            final screenWidth = MediaQuery.of(context).size.width;
+                            final isStack = screenWidth < 380;
                             final brandField = Expanded(
                               child: CustomTextField(
                                 controller: _brandController,
@@ -303,9 +304,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                         ),
                         const SizedBox(height: 16),
                         
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isStack = constraints.maxWidth < 380;
+                        Builder(
+                          builder: (context) {
+                            final screenWidth = MediaQuery.of(context).size.width;
+                            final isStack = screenWidth < 380;
                             final priceField = Expanded(
                               child: CustomTextField(
                                 controller: _priceController,
@@ -353,9 +355,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                         const SizedBox(height: 16),
                         
                         // Unit Type and Availability Status
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isStack = constraints.maxWidth < 380;
+                        Builder(
+                          builder: (context) {
+                            final screenWidth = MediaQuery.of(context).size.width;
+                            final isStack = screenWidth < 380;
                             final unitType = Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
