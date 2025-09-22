@@ -123,14 +123,21 @@ class LocationService {
     String normalizedEntered = _normalizeAddress(enteredAddress);
     String normalizedGps = _normalizeAddress(gpsAddress);
 
-    // Check if addresses are similar (at least 70% match)
+    // Check if addresses are similar (reduced threshold to 60% for more flexibility)
     double similarity = _calculateSimilarity(normalizedEntered, normalizedGps);
     
-    debugPrint('Address similarity: $similarity%');
+    debugPrint('Address similarity: ${(similarity * 100).toStringAsFixed(1)}%');
     debugPrint('Entered: $normalizedEntered');
     debugPrint('GPS: $normalizedGps');
     
-    return similarity >= 0.7;
+    // More flexible matching: 60% similarity OR exact key components match
+    bool similarityMatch = similarity >= 0.6;
+    bool keyComponentsMatch = _checkKeyComponents(normalizedEntered, normalizedGps);
+    
+    bool result = similarityMatch || keyComponentsMatch;
+    debugPrint('Similarity match: $similarityMatch, Key components match: $keyComponentsMatch, Final result: $result');
+    
+    return result;
   }
 
   /// Normalize address for comparison
@@ -159,6 +166,49 @@ class LocationService {
     }
     
     return matches / totalWords;
+  }
+
+  /// Check if key address components match (area, city, state)
+  static bool _checkKeyComponents(String enteredAddress, String gpsAddress) {
+    List<String> enteredWords = enteredAddress.split(' ');
+    List<String> gpsWords = gpsAddress.split(' ');
+    
+    // Key components to check (area, locality, city, state)
+    List<String> keyWords = [];
+    
+    // Extract potential key components (longer words that are likely area/city names)
+    for (String word in enteredWords) {
+      if (word.length >= 4 && !_isCommonWord(word)) {
+        keyWords.add(word);
+      }
+    }
+    
+    // Check if any key component from entered address exists in GPS address
+    for (String keyWord in keyWords) {
+      for (String gpsWord in gpsWords) {
+        if (keyWord == gpsWord || _isWordSimilar(keyWord, gpsWord)) {
+          debugPrint('Key component match found: $keyWord <-> $gpsWord');
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /// Check if a word is a common word (not a location identifier)
+  static bool _isCommonWord(String word) {
+    List<String> commonWords = [
+      'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+      'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before',
+      'after', 'above', 'below', 'between', 'among', 'near', 'far', 'here',
+      'there', 'where', 'when', 'why', 'how', 'what', 'who', 'which', 'that',
+      'this', 'these', 'those', 'my', 'your', 'his', 'her', 'its', 'our',
+      'their', 'some', 'any', 'all', 'both', 'each', 'every', 'other',
+      'another', 'such', 'no', 'not', 'only', 'own', 'same', 'so', 'than',
+      'too', 'very', 'can', 'will', 'just', 'should', 'now'
+    ];
+    return commonWords.contains(word.toLowerCase());
   }
 
   /// Check if two words are similar (for typos, abbreviations, etc.)

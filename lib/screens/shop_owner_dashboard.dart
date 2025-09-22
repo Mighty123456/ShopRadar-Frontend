@@ -32,6 +32,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
     _loadShopData();
   }
 
+
   Future<void> _loadShopData() async {
     try {
       // Load shop data first
@@ -280,19 +281,23 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
   }
 
   Widget _buildHomeTab(bool isSmallScreen, bool isTablet, bool isLargeTablet, bool isMedium, bool isLarge, bool isExtraLarge) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(isExtraLarge ? 24 : (isLarge ? 20 : (isMedium ? 16 : (isSmallScreen ? 12 : 16)))),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildQuickStats(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
-          SizedBox(height: isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : (isSmallScreen ? 20 : 24)))),
-          _buildQuickActions(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
-          SizedBox(height: isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : (isSmallScreen ? 20 : 24)))),
-          _buildRecentActivity(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
-          SizedBox(height: isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : (isSmallScreen ? 20 : 24)))),
-          _buildShopStatusCard(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
-        ],
+    return RefreshIndicator(
+      onRefresh: _loadShopData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.all(isExtraLarge ? 24 : (isLarge ? 20 : (isMedium ? 16 : (isSmallScreen ? 12 : 16)))),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildQuickStats(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
+            SizedBox(height: isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : (isSmallScreen ? 20 : 24)))),
+            _buildQuickActions(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
+            SizedBox(height: isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : (isSmallScreen ? 20 : 24)))),
+            _buildRecentActivity(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
+            SizedBox(height: isExtraLarge ? 32 : (isLarge ? 28 : (isMedium ? 24 : (isSmallScreen ? 20 : 24)))),
+            _buildShopStatusCard(isSmallScreen, isTablet, isLargeTablet, isMedium, isLarge, isExtraLarge),
+          ],
+        ),
       ),
     );
   }
@@ -442,12 +447,16 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
               'Add Product',
               Icons.add_box,
               Colors.green,
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ProductManagementScreen(),
-                ),
-              ),
+              () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProductManagementScreen(),
+                  ),
+                );
+                // Refresh dashboard data when returning from product management
+                _loadShopData();
+              },
               isSmallScreen,
               isTablet,
               isLargeTablet,
@@ -459,12 +468,16 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
               'Create Offer',
               Icons.local_offer,
               Colors.orange,
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const OfferPromotionScreen(),
-                ),
-              ),
+              () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const OfferPromotionScreen(),
+                  ),
+                );
+                // Refresh dashboard data when returning from offer management
+                _loadShopData();
+              },
               isSmallScreen,
               isTablet,
               isLargeTablet,
@@ -476,12 +489,16 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
               'Edit Profile',
               Icons.edit,
               Colors.blue,
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ShopProfileScreen(),
-                ),
-              ),
+              () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ShopProfileScreen(),
+                  ),
+                );
+                // Refresh dashboard data when returning from profile editing
+                _loadShopData();
+              },
               isSmallScreen,
               isTablet,
               isLargeTablet,
@@ -493,12 +510,16 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
               'View Analytics',
               Icons.analytics,
               Colors.purple,
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AnalyticsDashboardScreen(),
-                ),
-              ),
+              () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AnalyticsDashboardScreen(),
+                  ),
+                );
+                // Refresh dashboard data when returning from analytics
+                _loadShopData();
+              },
               isSmallScreen,
               isTablet,
               isLargeTablet,

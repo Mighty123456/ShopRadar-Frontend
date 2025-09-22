@@ -10,7 +10,7 @@ import 'screens/verification_success_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/change_password_screen.dart';
 import 'screens/shop_owner_dashboard.dart';
-import 'screens/map_screen.dart';
+import 'screens/map_screen_free.dart';
 import 'screens/shop_details_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/shop_comparison_screen.dart';
@@ -164,7 +164,7 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
         '/shop-owner-dashboard': (context) => const ShopOwnerDashboard(),
         '/map': (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
-          return MapScreen(
+          return MapScreenFree(
             searchQuery: args?['searchQuery'],
             category: args?['category'],
           );

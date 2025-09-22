@@ -643,14 +643,14 @@ class _SignUpFormState extends State<_SignUpForm> {
         if (addressesMatch) {
           MessageHelper.showAnimatedMessage(
             context,
-            message: '✅ Location verified successfully! Your address matches your current location.',
+            message: '✅ Location verified successfully! Your address matches your current location within 100m tolerance.',
             type: MessageType.success,
             title: 'Location Verified',
           );
         } else {
           MessageHelper.showAnimatedMessage(
             context,
-            message: '⚠️ Your current location does not match the entered address. Please verify your address or re-upload your license document.',
+            message: '⚠️ Your current location does not match the entered address. Please ensure you are at your shop location and try again. The system allows up to 100m movement within your shop area.',
             type: MessageType.warning,
             title: 'Address Mismatch',
           );
