@@ -40,7 +40,7 @@ class ShopRadarApp extends StatefulWidget {
   State<ShopRadarApp> createState() => _ShopRadarAppState();
 }
 
-class _ShopRadarAppState extends State<ShopRadarApp> {
+class _ShopRadarAppState extends State<ShopRadarApp> {      
   bool _showOnboarding = false;
   bool _isInitializing = true;
   bool _showSplashBeforeOnboarding = false;
