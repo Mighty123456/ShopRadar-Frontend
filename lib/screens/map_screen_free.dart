@@ -1,7 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' as latlng;
+import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
 import '../services/shop_service.dart';
 import '../models/shop.dart';
@@ -9,17 +10,21 @@ import '../widgets/shop_info_window.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/search_overlay.dart';
 import '../config/mapbox_config.dart';
+import '../services/routing_service.dart';
+import '../services/geocoding_service.dart';
 
 class MapScreenFree extends StatefulWidget {
   final String? searchQuery;
   final String? category;
   final List<Shop>? shopsOverride;
+  final VoidCallback? onBack;
   
   const MapScreenFree({
     super.key,
     this.searchQuery,
     this.category,
     this.shopsOverride,
+    this.onBack,
   });
 
   @override
@@ -27,21 +32,22 @@ class MapScreenFree extends StatefulWidget {
 }
 
 class _MapScreenFreeState extends State<MapScreenFree> {
-  GoogleMapController? _mapController;
-  final Set<Marker> _markers = {};
+  final MapController _mapController = MapController();
+  final List<Marker> _markers = [];
   List<Shop> _shops = [];
+  final List<latlng.LatLng> _routePolyline = [];
   bool _isLoading = true;
   bool _showSearchOverlay = false;
   String _selectedCategory = 'All';
   String _searchQuery = '';
-  LatLng? _currentLocation;
+  latlng.LatLng? _currentLocation;
   Shop? _selectedShop;
   bool _showShopDetails = false;
-  bool _hasLocationPermission = false;
-  String? _mapStyle;
+  Shop? _recommendedShop;
+  // Google-specific fields removed for WebView implementation
   
   // Simple distance calculator (Haversine)
-  double _distanceMeters(LatLng a, LatLng b) {
+  double _distanceMeters(latlng.LatLng a, latlng.LatLng b) {
     const double earthRadius = 6371000; // meters
     final double dLat = _deg2rad(b.latitude - a.latitude);
     final double dLon = _deg2rad(b.longitude - a.longitude);
@@ -57,15 +63,11 @@ class _MapScreenFreeState extends State<MapScreenFree> {
   double _deg2rad(double deg) => deg * (math.pi / 180);
 
   // Map configuration
-  static const CameraPosition _defaultLocation = CameraPosition(
-    target: LatLng(MapConfig.defaultLatitude, MapConfig.defaultLongitude),
-    zoom: MapConfig.defaultZoom,
-  );
+  static final latlng.LatLng _defaultCenter = latlng.LatLng(MapConfig.defaultLatitude, MapConfig.defaultLongitude);
 
   @override
   void initState() {
     super.initState();
-    _loadMapStyle();
     _initializeMap();
     if (widget.searchQuery != null) {
       _searchQuery = widget.searchQuery!;
@@ -75,46 +77,38 @@ class _MapScreenFreeState extends State<MapScreenFree> {
     }
   }
 
-  Future<void> _loadMapStyle() async {
-    try {
-      final style = await rootBundle.loadString('assets/map_styles/neutral.json');
-      if (mounted) {
-        setState(() {
-          _mapStyle = style;
-        });
-      }
-    } catch (e) {
-      debugPrint('Map style load error: $e');
-    }
-  }
-
   Future<void> _initializeMap() async {
     try {
+      // Ensure location services are enabled; prompt user to enable if off
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled && mounted) {
+        final shouldOpen = await _askToEnableLocationServices();
+        if (shouldOpen == true) {
+          await Geolocator.openLocationSettings();
+          serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        }
+      }
+
       // Ensure we have location permission first
       bool granted = await LocationService.isLocationPermissionGranted();
       if (!granted) {
         granted = await LocationService.requestLocationPermission();
       }
       if (!mounted) return;
-      setState(() {
-        _hasLocationPermission = granted;
-      });
 
       // Get current location (may be null if denied)
       final position = await LocationService.getCurrentLocation();
       if (position != null) {
         if (mounted) {
           setState(() {
-            _currentLocation = LatLng(position.latitude, position.longitude);
+            _currentLocation = latlng.LatLng(position.latitude, position.longitude);
           });
         }
         
         // Move camera to current location
-        if (_mapController != null) {
-          _mapController!.animateCamera(
-            CameraUpdate.newLatLng(_currentLocation!),
-          );
-        }
+        try {
+          _mapController.move(_currentLocation!, MapConfig.defaultZoom);
+        } catch (_) {}
       }
       
       // Load nearby shops
@@ -130,6 +124,28 @@ class _MapScreenFreeState extends State<MapScreenFree> {
     }
   }
 
+  Future<bool?> _askToEnableLocationServices() async {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Enable Location'),
+          content: const Text('Location services are turned off. Enable them to see your current location and nearby shops.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Open Settings'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _loadShops() async {
     try {
       if (mounted) {
@@ -141,6 +157,7 @@ class _MapScreenFreeState extends State<MapScreenFree> {
       // If UI passes in override shops (mock), use them directly
       if (widget.shopsOverride != null && widget.shopsOverride!.isNotEmpty) {
         _shops = widget.shopsOverride!;
+        _rankAndRecommend();
         _updateMarkers();
         return;
       }
@@ -166,7 +183,7 @@ class _MapScreenFreeState extends State<MapScreenFree> {
           // Compute rough distance in km if we have current location
           double distanceKm = 0.0;
           if (_currentLocation != null) {
-            distanceKm = _distanceMeters(_currentLocation!, LatLng(latitude, longitude)) / 1000.0;
+            distanceKm = _distanceMeters(_currentLocation!, latlng.LatLng(latitude, longitude)) / 1000.0;
           }
           return Shop(
             id: (shop['_id'] ?? shop['id'] ?? '').toString(),
@@ -197,12 +214,13 @@ class _MapScreenFreeState extends State<MapScreenFree> {
 
         if (_currentLocation != null && _shops.isNotEmpty) {
           _shops.sort((a, b) {
-            final da = _distanceMeters(_currentLocation!, LatLng(a.latitude, a.longitude));
-            final db = _distanceMeters(_currentLocation!, LatLng(b.latitude, b.longitude));
+            final da = _distanceMeters(_currentLocation!, latlng.LatLng(a.latitude, a.longitude));
+            final db = _distanceMeters(_currentLocation!, latlng.LatLng(b.latitude, b.longitude));
             return da.compareTo(db);
           });
         }
 
+        _rankAndRecommend();
         _updateMarkers();
       } else {
         if (mounted) {
@@ -229,60 +247,80 @@ class _MapScreenFreeState extends State<MapScreenFree> {
 
   void _updateMarkers() {
     _markers.clear();
-    
     for (final shop in _shops) {
       _markers.add(
         Marker(
-          markerId: MarkerId(shop.id),
-          position: LatLng(shop.latitude, shop.longitude),
-          icon: _getMarkerIcon(shop.category),
-          infoWindow: InfoWindow(
-            title: shop.name,
-            snippet: '${shop.rating} ⭐ • ${shop.distance}km',
+          point: latlng.LatLng(shop.latitude, shop.longitude),
+          width: 44,
+          height: 44,
+          child: GestureDetector(
+            onTap: () => _onMarkerTapped(shop),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: shop.id == _recommendedShop?.id ? const Color(0xFFFFD54F) : const Color(0xFF2979FF),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 2))],
+              ),
+              child: const Icon(Icons.location_on, color: Colors.white),
+            ),
           ),
-          onTap: () => _onMarkerTapped(shop),
         ),
       );
     }
-    
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
-  BitmapDescriptor _getMarkerIcon(String category) {
-    // Return different colored markers based on category
-    switch (category.toLowerCase()) {
-      case 'electronics':
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
-      case 'fashion':
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueMagenta);
-      case 'home & garden':
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
-      case 'food':
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
-      default:
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+  void _rankAndRecommend() {
+    if (_shops.isEmpty) {
+      _recommendedShop = null;
+      return;
     }
+    // Simple weighted score: distance (lower better), discount (higher better), rating (higher better)
+    double bestScore = -1e9;
+    Shop? best;
+    for (final s in _shops) {
+      final double distanceScore = -s.distance; // closer better
+      final double discount = s.offers.isNotEmpty ? s.offers.map((o) => o.discount).reduce((a, b) => a > b ? a : b) : 0.0;
+      final double discountScore = discount / 100.0;
+      final double ratingScore = s.rating / 5.0;
+      final double score = (0.5 * ratingScore) + (0.3 * discountScore) + (0.2 * distanceScore);
+      if (score > bestScore) {
+        bestScore = score;
+        best = s;
+      }
+    }
+    _recommendedShop = best;
   }
+
+  // For category-based styling we style in builder above; no BitmapDescriptor in flutter_map
 
   void _onMarkerTapped(Shop shop) {
     if (mounted) {
       setState(() {
         _selectedShop = shop;
         _showShopDetails = true;
+        _drawRouteTo(shop);
       });
     }
   }
 
   void _onSearch(String query) {
-    if (mounted) {
-      setState(() {
-        _searchQuery = query;
-        _showSearchOverlay = false;
-      });
-    }
-    _loadShops();
+    if (!mounted) return;
+    setState(() {
+      _searchQuery = query;
+      _showSearchOverlay = false;
+    });
+    // Test-only: center map using Nominatim forward geocoding
+    GeocodingService.forwardSearch(query).then((res) {
+      if (!mounted || res == null) {
+        _loadShops();
+        return;
+      }
+      _mapController.move(latlng.LatLng(res.center.latitude, res.center.longitude), 14);
+      _loadShops();
+    }).catchError((_) {
+      _loadShops();
+    });
   }
 
   void _onCategoryChanged(String category) {
@@ -295,12 +333,20 @@ class _MapScreenFreeState extends State<MapScreenFree> {
   }
 
   void _onMyLocationPressed() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled && mounted) {
+      final shouldOpen = await _askToEnableLocationServices();
+      if (shouldOpen == true) {
+        await Geolocator.openLocationSettings();
+      }
+    }
     final position = await LocationService.getCurrentLocation();
-    if (position != null && _mapController != null) {
-      final location = LatLng(position.latitude, position.longitude);
-      _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(location, 16.0),
-      );
+    if (position != null) {
+      final location = latlng.LatLng(position.latitude, position.longitude);
+      setState(() {
+        _currentLocation = location;
+      });
+      _mapController.move(location, 16.0);
     }
   }
 
@@ -317,6 +363,44 @@ class _MapScreenFreeState extends State<MapScreenFree> {
     );
   }
 
+  void _drawRouteTo(Shop shop) {
+    _routePolyline.clear();
+    if (_currentLocation == null) return;
+    final start = _currentLocation!;
+    final end = latlng.LatLng(shop.latitude, shop.longitude);
+    // Try ORS first; fallback to straight line
+    RoutingService.getRoute(start: start, end: end).then((route) {
+      if (!mounted) return;
+      if (route != null && route.points.length >= 2) {
+        setState(() {
+          _routePolyline
+            ..clear()
+            ..addAll(route.points);
+        });
+        final km = (route.distanceMeters / 1000.0).toStringAsFixed(1);
+        final min = (route.durationSeconds / 60.0).round();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Route: $km km • ~$min min')),
+        );
+      } else {
+        setState(() {
+          _routePolyline
+            ..clear()
+            ..add(start)
+            ..add(end);
+        });
+      }
+    }).catchError((_) {
+      if (!mounted) return;
+      setState(() {
+        _routePolyline
+          ..clear()
+          ..add(start)
+          ..add(end);
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
@@ -325,36 +409,55 @@ class _MapScreenFreeState extends State<MapScreenFree> {
     return Scaffold(
       body: Stack(
         children: [
-          // Google Map
-          GoogleMap(
-            style: _mapStyle,
-            initialCameraPosition: _currentLocation != null
-                ? CameraPosition(
-                    target: _currentLocation!,
-                    zoom: 14.0,
-                  )
-                : _defaultLocation,
-            markers: _markers,
-            onMapCreated: (GoogleMapController controller) {
-              _mapController = controller;
-              if (_currentLocation != null) {
-                controller.animateCamera(
-                  CameraUpdate.newLatLng(_currentLocation!),
-                );
-              }
-            },
-            myLocationEnabled: _hasLocationPermission,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            onTap: (LatLng position) {
-              if (mounted) {
-                setState(() {
-                  _showShopDetails = false;
-                  _selectedShop = null;
-                });
-              }
-            },
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _currentLocation ?? _defaultCenter,
+              initialZoom: MapConfig.defaultZoom,
+              interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: MapConfig.defaultTileLayer,
+                userAgentPackageName: 'com.shopr radar.app',
+                tileProvider: NetworkTileProvider(),
+              ),
+              if (_currentLocation != null)
+                CircleLayer(circles: [
+                  CircleMarker(
+                    point: _currentLocation!,
+                    color: const Color(0xFF2979FF).withValues(alpha: 0.15),
+                    borderStrokeWidth: 2,
+                    borderColor: const Color(0xFF2979FF).withValues(alpha: 0.6),
+                    radius: 25,
+                  ),
+                ]),
+              if (_currentLocation != null)
+                MarkerLayer(markers: [
+                  Marker(
+                    point: _currentLocation!,
+                    width: 24,
+                    height: 24,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2979FF),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 2)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ]),
+              if (_markers.isNotEmpty) MarkerLayer(markers: _markers),
+              if (_routePolyline.length >= 2)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(points: _routePolyline, color: const Color(0xFF2979FF), strokeWidth: 4),
+                  ],
+                ),
+            ],
           ),
           
           // Back/Exit Button
@@ -371,7 +474,13 @@ class _MapScreenFreeState extends State<MapScreenFree> {
                   Icons.arrow_back,
                   size: isTablet ? 24 : 20,
                 ),
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: () {
+                  if (widget.onBack != null) {
+                    widget.onBack!();
+                  } else {
+                    Navigator.of(context).maybePop();
+                  }
+                },
                 tooltip: 'Back',
               ),
             ),
@@ -424,6 +533,7 @@ class _MapScreenFreeState extends State<MapScreenFree> {
                     setState(() {
                       _showShopDetails = false;
                       _selectedShop = null;
+                      _routePolyline.clear();
                     });
                   }
                 },
@@ -434,6 +544,43 @@ class _MapScreenFreeState extends State<MapScreenFree> {
                     SnackBar(content: Text('Opening ${_selectedShop!.name} details')),
                   );
                 },
+              ),
+            ),
+
+          // Recommendation banner
+          if (_recommendedShop != null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + (isTablet ? 90 : 80),
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.emoji_events, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Recommended: ${_recommendedShop!.name} — ${_recommendedShop!.offers.isNotEmpty ? _recommendedShop!.offers.first.formattedDiscount : 'Great rating'}',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        _onMarkerTapped(_recommendedShop!);
+                        _mapController.move(latlng.LatLng(_recommendedShop!.latitude, _recommendedShop!.longitude), 15);
+                      },
+                      child: const Text('VIEW', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
               ),
             ),
           

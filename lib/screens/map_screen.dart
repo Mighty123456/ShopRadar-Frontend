@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:flutter/services.dart';
 import '../services/location_service.dart';
 import '../services/shop_service.dart';
 import '../models/shop.dart';
@@ -36,8 +35,7 @@ class _MapScreenState extends State<MapScreen> {
   LatLng? _currentLocation;
   Shop? _selectedShop;
   bool _showShopDetails = false;
-  bool _hasLocationPermission = false;
-  String? _mapStyle;
+  // Google-specific fields removed for WebView implementation
   
   // Simple distance calculator (Haversine) for non-ML ordering
   double _distanceMeters(LatLng a, LatLng b) {
@@ -64,26 +62,12 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    _loadMapStyle();
     _initializeMap();
     if (widget.searchQuery != null) {
       _searchQuery = widget.searchQuery!;
     }
     if (widget.category != null) {
       _selectedCategory = widget.category!;
-    }
-  }
-
-  Future<void> _loadMapStyle() async {
-    try {
-      final style = await rootBundle.loadString('assets/map_styles/neutral.json');
-      if (mounted) {
-        setState(() {
-          _mapStyle = style;
-        });
-      }
-    } catch (e) {
-      debugPrint('Map style load error: $e');
     }
   }
 
@@ -95,9 +79,6 @@ class _MapScreenState extends State<MapScreen> {
         granted = await LocationService.requestLocationPermission();
       }
       if (!mounted) return;
-      setState(() {
-        _hasLocationPermission = granted;
-      });
 
       // Get current location (may be null if denied)
       final position = await LocationService.getCurrentLocation();
@@ -328,36 +309,20 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Google Map
           GoogleMap(
-            style: _mapStyle,
-            initialCameraPosition: _currentLocation != null
-                ? CameraPosition(
-                    target: _currentLocation!,
-                    zoom: 14.0,
-                  )
-                : _defaultLocation,
+            initialCameraPosition: _defaultLocation,
             markers: _markers,
-            onMapCreated: (GoogleMapController controller) {
+            onMapCreated: (controller) {
               _mapController = controller;
               if (_currentLocation != null) {
-                controller.animateCamera(
+                _mapController!.moveCamera(
                   CameraUpdate.newLatLng(_currentLocation!),
                 );
               }
             },
-            myLocationEnabled: _hasLocationPermission,
+            myLocationEnabled: true,
             myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            onTap: (LatLng position) {
-              if (mounted) {
-                setState(() {
-                  _showShopDetails = false;
-                  _selectedShop = null;
-                });
-              }
-            },
+            compassEnabled: true,
           ),
           
           // Back/Exit Button

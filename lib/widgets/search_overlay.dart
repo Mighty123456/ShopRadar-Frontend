@@ -139,85 +139,74 @@ class _SearchOverlayState extends State<SearchOverlay> {
             Expanded(
               child: Container(
                 color: Colors.white,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'Categories',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // If the available height is small (e.g., keyboard open or embedded map),
+                    // use a scrollable body to avoid RenderFlex overflow.
+                    final useScroll = constraints.maxHeight < 380;
+                    final categoriesGrid = GridView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shrinkWrap: useScroll,
+                      physics: useScroll ? const NeverScrollableScrollPhysics() : null,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.0,
                       ),
-                    ),
-                    
-                    Expanded(
-                      child: GridView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 1.0,
-                        ),
-                        itemCount: _categories.length,
-                        itemBuilder: (context, index) {
-                          final category = _categories[index];
-                          final isSelected = _selectedCategory == category['name'];
-                          
-                          return GestureDetector(
-                            onTap: () => _onCategorySelected(category['name']),
-                            child: Container(
-                              decoration: BoxDecoration(
+                      itemCount: _categories.length,
+                      itemBuilder: (context, index) {
+                        final category = _categories[index];
+                        final isSelected = _selectedCategory == category['name'];
+                        return GestureDetector(
+                          onTap: () => _onCategorySelected(category['name']),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? (category['color'] as Color).withValues(alpha: 0.1)
+                                  : Colors.grey[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
                                 color: isSelected
-                                    ? (category['color'] as Color).withValues(alpha: 0.1)
-                                    : Colors.grey[50],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
+                                    ? category['color'] as Color
+                                    : Colors.grey[300]!,
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  category['icon'] as IconData,
                                   color: isSelected
                                       ? category['color'] as Color
-                                      : Colors.grey[300]!,
-                                  width: isSelected ? 2 : 1,
+                                      : Colors.grey[600],
+                                  size: 28,
                                 ),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    category['icon'] as IconData,
+                                const SizedBox(height: 8),
+                                Text(
+                                  category['name'] as String,
+                                  style: TextStyle(
                                     color: isSelected
                                         ? category['color'] as Color
                                         : Colors.grey[600],
-                                    size: 28,
+                                    fontSize: 12,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    category['name'] as String,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? category['color'] as Color
-                                          : Colors.grey[600],
-                                      fontSize: 12,
-                                      fontWeight: isSelected
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                    
-                    // Search button
-                    Padding(
+                          ),
+                        );
+                      },
+                    );
+
+                    final searchButton = Padding(
                       padding: const EdgeInsets.all(16),
                       child: SizedBox(
                         width: double.infinity,
@@ -240,8 +229,48 @@ class _SearchOverlayState extends State<SearchOverlay> {
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    );
+
+                    if (useScroll) {
+                      return SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Text(
+                                'Categories',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            categoriesGrid,
+                            searchButton,
+                          ],
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'Categories',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Expanded(child: categoriesGrid),
+                        searchButton,
+                      ],
+                    );
+                  },
                 ),
               ),
             ),

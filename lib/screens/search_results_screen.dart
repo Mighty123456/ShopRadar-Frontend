@@ -124,10 +124,17 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     final screenSize = MediaQuery.of(context).size;
     final isTablet = screenSize.width > 600;
     
-    return ListTile(
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.symmetric(
+        horizontal: isTablet ? 16 : 12,
+        vertical: isTablet ? 8 : 6,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey[200]!)),
+      child: ListTile(
       contentPadding: EdgeInsets.symmetric(
-        horizontal: isTablet ? 24 : 16,
-        vertical: isTablet ? 8 : 4,
+          horizontal: isTablet ? 16 : 12,
+          vertical: isTablet ? 6 : 2,
       ),
       leading: CircleAvatar(
         radius: isTablet ? 24 : 20,
@@ -138,34 +145,76 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           size: isTablet ? 24 : 20,
         ),
       ),
-      title: Text(
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
         shop.name, 
         style: TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: isTablet ? 18 : 16,
-        )
-      ),
-      subtitle: Row(
+                ),
+              ),
+            ),
+            if (shop.offers.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  shop.offers.first.formattedDiscount,
+                  style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w600, fontSize: 11),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.star, size: isTablet ? 18 : 16, color: Colors.amber),
+                SizedBox(width: isTablet ? 6 : 4),
+                Text('${shop.rating} • ${shop.formattedDistance} • ${shop.category}', style: TextStyle(fontSize: isTablet ? 16 : 14)),
+              ],
+            ),
+            SizedBox(height: 6),
+            Row(
         children: [
-          Icon(
-            Icons.star, 
-            size: isTablet ? 18 : 16, 
-            color: Colors.amber
-          ),
-          SizedBox(width: isTablet ? 6 : 4),
-          Text(
-            '${shop.rating} • ${shop.formattedDistance} • ${shop.category}',
-            style: TextStyle(fontSize: isTablet ? 16 : 14),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pushNamed('/map', arguments: {
+                      'searchQuery': _controller.text,
+                      'shops': _results,
+                    });
+                  },
+                  icon: const Icon(Icons.map, size: 16),
+                  label: const Text('View on Map'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF2979FF),
+                    side: const BorderSide(color: Color(0xFF2979FF)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pushNamed('/shop-details', arguments: { 'shop': shop });
+                  },
+                  child: const Text('Details'),
           ),
         ],
       ),
-      trailing: Icon(
-        Icons.arrow_forward_ios, 
-        size: isTablet ? 18 : 16,
+          ],
       ),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: () {
         Navigator.of(context).pushNamed('/shop-details', arguments: { 'shop': shop });
       },
+      ),
     );
   }
 

@@ -1,13 +1,15 @@
-import 'package:flutter/material.dart';
 import '../models/shop.dart';
 import 'rating_widget.dart';
+import 'package:flutter/material.dart';
 
 class ReviewCard extends StatelessWidget {
   final ShopReview review;
+  final bool showSentiment;
 
   const ReviewCard({
     super.key,
     required this.review,
+    this.showSentiment = true,
   });
 
   @override
@@ -117,6 +119,11 @@ class ReviewCard extends StatelessWidget {
               height: 1.4,
             ),
           ),
+
+          if (showSentiment) ...[
+            const SizedBox(height: 8),
+            _SentimentChip(comment: review.comment),
+          ],
           
           // Review images
           if (review.images.isNotEmpty) ...[
@@ -142,6 +149,53 @@ class ReviewCard extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SentimentChip extends StatelessWidget {
+  final String comment;
+  const _SentimentChip({required this.comment});
+
+  @override
+  Widget build(BuildContext context) {
+    // UI-only naive sentiment: positive if contains good words, negative if contains negative words
+    final lower = comment.toLowerCase();
+    const positiveWords = ['good', 'great', 'excellent', 'amazing', 'nice', 'original', 'best', 'love'];
+    const negativeWords = ['bad', 'fake', 'poor', 'worst', 'terrible', 'late', 'slow'];
+    bool isPositive = positiveWords.any((w) => lower.contains(w));
+    bool isNegative = negativeWords.any((w) => lower.contains(w));
+    Color bg;
+    Color fg;
+    String label;
+    if (isPositive && !isNegative) {
+      bg = const Color(0xFFE8F5E8);
+      fg = const Color(0xFF2E7D32);
+      label = 'Positive';
+    } else if (isNegative && !isPositive) {
+      bg = const Color(0xFFFFEBEE);
+      fg = const Color(0xFFC62828);
+      label = 'Negative';
+    } else {
+      bg = const Color(0xFFE3F2FD);
+      fg = const Color(0xFF1565C0);
+      label = 'Neutral';
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            label == 'Positive' ? Icons.check_circle : label == 'Negative' ? Icons.cancel : Icons.info_outline,
+            size: 14,
+            color: fg,
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w600, fontSize: 12)),
         ],
       ),
     );

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'api_service.dart';
 import '../models/user_model.dart';
+import 'network_config.dart';
 
 class AuthService {
   static const String _tokenKey = 'token';
@@ -241,14 +242,14 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    try {
+    Future<Map<String, dynamic>> doLogin(Duration timeout) async {
       final response = await ApiService.post('/api/auth/login', {
         'email': email,
         'password': password,
       }).timeout(
-        const Duration(seconds: 15),
+        timeout,
         onTimeout: () {
-          throw TimeoutException('Login request timed out', const Duration(seconds: 15));
+          throw TimeoutException('Login request timed out', timeout);
         },
       );
 
@@ -264,18 +265,35 @@ class AuthService {
       } else {
         final error = jsonDecode(response.body);
         return {
-          'success': false, 
+          'success': false,
           'message': error['message'] ?? 'Login failed',
           'needsVerification': error['needsVerification'] ?? false,
         };
       }
+    }
+
+    try {
+      // First attempt with a slightly longer timeout for hosted backends
+      return await doLogin(const Duration(seconds: 25));
     } on TimeoutException catch (e) {
-      debugPrint('Login timeout: $e');
-      return {
-        'success': false,
-        'message': 'Request timed out. Please check your connection and try again.',
-        'timeoutError': true,
-      };
+      debugPrint('Login timeout (first attempt): $e');
+      // Refresh network configuration and retry once with an extended timeout
+      try {
+        await NetworkConfig.refreshNetworkConfig();
+      } catch (_) {}
+      try {
+        final result = await doLogin(const Duration(seconds: 40));
+        result['retried'] = true;
+        return result;
+      } on TimeoutException catch (e2) {
+        debugPrint('Login timeout (retry): $e2');
+        return {
+          'success': false,
+          'message': 'Request timed out. Please check your connection and try again.',
+          'timeoutError': true,
+          'retried': true,
+        };
+      }
     } catch (e) {
       return {'success': false, 'message': 'Network error: $e'};
     }

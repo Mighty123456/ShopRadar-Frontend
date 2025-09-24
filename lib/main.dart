@@ -167,6 +167,7 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
           return MapScreenFree(
             searchQuery: args?['searchQuery'],
             category: args?['category'],
+            shopsOverride: args?['shops'],
           );
         },
         '/search-results': (context) {

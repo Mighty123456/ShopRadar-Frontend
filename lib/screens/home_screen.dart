@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/animated_message_dialog.dart';
-import 'map_screen.dart';
+import 'map_screen_free.dart';
 import '../services/notification_service.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
@@ -510,7 +510,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-        child: const MapScreen(),
+        child: MapScreenFree(
+          onBack: () {
+            setState(() {
+              _isMapView = false;
+            });
+          },
+        ),
       ),
     );
   }

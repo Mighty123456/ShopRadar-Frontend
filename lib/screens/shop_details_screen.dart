@@ -21,6 +21,8 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
   late TabController _tabController;
   List<ShopReview> _reviews = [];
   bool _isLoadingReviews = true;
+  double _myRating = 4.0;
+  final TextEditingController _reviewController = TextEditingController();
 
   @override
   void initState() {
@@ -32,6 +34,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _reviewController.dispose();
     super.dispose();
   }
 
@@ -351,32 +354,22 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
     }
 
     if (_reviews.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.reviews, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'No reviews yet',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Be the first to review this shop!',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      );
+      return _buildReviewComposer(emptyState: true);
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _reviews.length,
-      itemBuilder: (context, index) {
-        return ReviewCard(review: _reviews[index]);
-      },
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: _reviews.length,
+            itemBuilder: (context, index) {
+              return ReviewCard(review: _reviews[index]);
+            },
+          ),
+        ),
+        _buildReviewComposer(),
+      ],
     );
   }
 
@@ -462,6 +455,73 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                 _buildHoursRow('Saturday', '10:00 AM - 8:00 PM'),
                 _buildHoursRow('Sunday', '11:00 AM - 6:00 PM'),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewComposer({bool emptyState = false}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (emptyState) ...[
+            const SizedBox(height: 24),
+            const Icon(Icons.reviews, size: 64, color: Colors.grey),
+            const SizedBox(height: 12),
+            const Text('No reviews yet', textAlign: TextAlign.center, style: TextStyle(fontSize: 18, color: Colors.grey)),
+            const SizedBox(height: 6),
+            const Text('Be the first to review this shop!', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 16),
+          ],
+          Row(
+            children: [
+              const Text('Your Rating: ', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(width: 8),
+              for (int i = 1; i <= 5; i++)
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    i <= _myRating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                    size: 22,
+                  ),
+                  onPressed: () => setState(() => _myRating = i.toDouble()),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _reviewController,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Share your experience... (UI only, no backend)',
+              filled: true,
+              fillColor: Colors.grey[50],
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF2979FF))),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Review submitted (UI only).')));
+                _reviewController.clear();
+              },
+              icon: const Icon(Icons.send, size: 18),
+              label: const Text('Submit Review'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2979FF), foregroundColor: Colors.white),
             ),
           ),
         ],
