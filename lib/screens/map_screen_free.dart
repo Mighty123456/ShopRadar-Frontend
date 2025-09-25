@@ -18,6 +18,7 @@ class MapScreenFree extends StatefulWidget {
   final String? category;
   final List<Shop>? shopsOverride;
   final VoidCallback? onBack;
+  final bool showOnlyUser; // when true, only show user's current location
   
   const MapScreenFree({
     super.key,
@@ -25,6 +26,7 @@ class MapScreenFree extends StatefulWidget {
     this.category,
     this.shopsOverride,
     this.onBack,
+    this.showOnlyUser = false,
   });
 
   @override
@@ -37,11 +39,14 @@ class _MapScreenFreeState extends State<MapScreenFree> {
   List<Shop> _shops = [];
   final List<latlng.LatLng> _routePolyline = [];
   bool _isLoading = true;
+  // Removed overlay usage; keeping UI minimal
+  // ignore: unused_field
   bool _showSearchOverlay = false;
   String _selectedCategory = 'All';
   String _searchQuery = '';
   latlng.LatLng? _currentLocation;
   Shop? _selectedShop;
+  // ignore: unused_field
   bool _showShopDetails = false;
   Shop? _recommendedShop;
   // Google-specific fields removed for WebView implementation
@@ -111,8 +116,11 @@ class _MapScreenFreeState extends State<MapScreenFree> {
         } catch (_) {}
       }
       
-      // Load nearby shops
-      await _loadShops();
+      // If shops are provided from previous screen, render them
+      if (widget.shopsOverride != null && widget.shopsOverride!.isNotEmpty) {
+        _shops = widget.shopsOverride!;
+        _updateMarkers();
+      }
     } catch (e) {
       debugPrint('Error initializing map: $e');
     } finally {
@@ -248,6 +256,14 @@ class _MapScreenFreeState extends State<MapScreenFree> {
   void _updateMarkers() {
     _markers.clear();
     for (final shop in _shops) {
+      final double discount = shop.offers.isNotEmpty ? shop.offers.first.discount : 0.0;
+      final double rating = shop.rating;
+      Color pinColor = const Color(0xFF2979FF); // default blue
+      if (rating >= 4.5 || discount >= 30) {
+        pinColor = const Color(0xFFFFB300); // amber for best
+      } else if (rating >= 4.0 || discount >= 10) {
+        pinColor = const Color(0xFF2E7D32); // green for good
+      }
       _markers.add(
         Marker(
           point: latlng.LatLng(shop.latitude, shop.longitude),
@@ -258,8 +274,14 @@ class _MapScreenFreeState extends State<MapScreenFree> {
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: shop.id == _recommendedShop?.id ? const Color(0xFFFFD54F) : const Color(0xFF2979FF),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 2))],
+                color: pinColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  )
+                ],
               ),
               child: const Icon(Icons.location_on, color: Colors.white),
             ),
@@ -450,13 +472,15 @@ class _MapScreenFreeState extends State<MapScreenFree> {
                     ),
                   ),
                 ]),
-              if (_markers.isNotEmpty) MarkerLayer(markers: _markers),
-              if (_routePolyline.length >= 2)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(points: _routePolyline, color: const Color(0xFF2979FF), strokeWidth: 4),
-                  ],
-                ),
+              // Removed shop markers - only show user location
+              // if (_markers.isNotEmpty) MarkerLayer(markers: _markers),
+              // Removed route polylines - no shop routes in map view
+              // if (_routePolyline.length >= 2)
+              //   PolylineLayer(
+              //     polylines: [
+              //       Polyline(points: _routePolyline, color: const Color(0xFF2979FF), strokeWidth: 4),
+              //     ],
+              //   ),
             ],
           ),
           
@@ -487,7 +511,8 @@ class _MapScreenFreeState extends State<MapScreenFree> {
           ),
           
           // Search Overlay
-          if (_showSearchOverlay)
+          // Removed search overlay - search moved to stores screen
+          if (false)
             SearchOverlay(
               onSearch: _onSearch,
               onCategoryChanged: _onCategoryChanged,
@@ -500,28 +525,47 @@ class _MapScreenFreeState extends State<MapScreenFree> {
               },
             ),
           
-          // Map Controls
-          Positioned(
-            top: MediaQuery.of(context).padding.top + (isTablet ? 20 : 16),
-            right: isTablet ? 20 : 16,
-            child: MapControls(
-              onSearchPressed: () {
-                setState(() {
-                  _showSearchOverlay = true;
-                });
-              },
-              onMyLocationPressed: _onMyLocationPressed,
-              onFilterPressed: () {
-                // TODO: Show filter options
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Filter options coming soon!')),
-                );
-              },
+          // Map Controls - only show my location button
+          if (true)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + (isTablet ? 20 : 16),
+              right: isTablet ? 20 : 16,
+              child: MapControls(
+                onSearchPressed: () {
+                  setState(() {
+                    _showSearchOverlay = true;
+                  });
+                },
+                onMyLocationPressed: _onMyLocationPressed,
+                onFilterPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Filter options coming soon!')),
+                  );
+                },
+              ),
+            )
+          else
+            Positioned(
+              top: MediaQuery.of(context).padding.top + (isTablet ? 20 : 16),
+              right: isTablet ? 20 : 16,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.my_location, color: Color(0xFF2979FF)),
+                  onPressed: _onMyLocationPressed,
+                  tooltip: 'My location',
+                ),
+              ),
             ),
-          ),
           
-          // Shop Details Bottom Sheet
-          if (_showShopDetails && _selectedShop != null)
+          // Removed shop details - no shop interactions in map view
+          if (false)
             Positioned(
               bottom: 0,
               left: 0,
@@ -547,8 +591,8 @@ class _MapScreenFreeState extends State<MapScreenFree> {
               ),
             ),
 
-          // Recommendation banner
-          if (_recommendedShop != null)
+          // Removed recommendation banner - recommendations moved to stores screen
+          if (false)
             Positioned(
               top: MediaQuery.of(context).padding.top + (isTablet ? 90 : 80),
               left: 16,

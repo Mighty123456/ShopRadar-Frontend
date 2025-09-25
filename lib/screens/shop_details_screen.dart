@@ -469,9 +469,10 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
         color: Colors.white,
         border: Border(top: BorderSide(color: Colors.grey[200]!)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           if (emptyState) ...[
             const SizedBox(height: 24),
             const Icon(Icons.reviews, size: 64, color: Colors.grey),
@@ -524,7 +525,8 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2979FF), foregroundColor: Colors.white),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
