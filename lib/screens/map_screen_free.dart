@@ -1,17 +1,17 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as latlng;
 import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
-import '../services/shop_service.dart';
+ 
 import '../models/shop.dart';
-import '../widgets/shop_info_window.dart';
 import '../widgets/map_controls.dart';
-import '../widgets/search_overlay.dart';
 import '../config/mapbox_config.dart';
 import '../services/routing_service.dart';
-import '../services/geocoding_service.dart';
+import '../services/search_service.dart';
+import 'dart:math' as math;
+import 'dart:async';
+ 
 
 class MapScreenFree extends StatefulWidget {
   final String? searchQuery;
@@ -19,6 +19,8 @@ class MapScreenFree extends StatefulWidget {
   final List<Shop>? shopsOverride;
   final VoidCallback? onBack;
   final bool showOnlyUser; // when true, only show user's current location
+  final Shop? routeToShop; // if provided, draw route immediately
+  final bool drawRoutesForAll; // when true, draw routes for all shopsOverride (up to 5)
   
   const MapScreenFree({
     super.key,
@@ -27,45 +29,42 @@ class MapScreenFree extends StatefulWidget {
     this.shopsOverride,
     this.onBack,
     this.showOnlyUser = false,
+    this.routeToShop,
+    this.drawRoutesForAll = false,
   });
 
   @override
   State<MapScreenFree> createState() => _MapScreenFreeState();
 }
 
-class _MapScreenFreeState extends State<MapScreenFree> {
+class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   final List<Marker> _markers = [];
   List<Shop> _shops = [];
   final List<latlng.LatLng> _routePolyline = [];
+  final List<Marker> _routeArrows = [];
+  final List<Marker> _routeLabels = [];
+  double _lastRouteKm = 0.0;
+  int _lastRouteMin = 0;
   bool _isLoading = true;
+  Timer? _routeUpdateTimer;
   // Removed overlay usage; keeping UI minimal
   // ignore: unused_field
   bool _showSearchOverlay = false;
-  String _selectedCategory = 'All';
-  String _searchQuery = '';
+  
   latlng.LatLng? _currentLocation;
   Shop? _selectedShop;
-  // ignore: unused_field
-  bool _showShopDetails = false;
-  Shop? _recommendedShop;
+  double _minRating = 0.0;
+  bool _openNowOnly = false;
+  latlng.LatLng? _customDestination;
+  StreamSubscription<Position>? _positionSub;
+  bool _followUser = true;
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulse;
+  
   // Google-specific fields removed for WebView implementation
   
-  // Simple distance calculator (Haversine)
-  double _distanceMeters(latlng.LatLng a, latlng.LatLng b) {
-    const double earthRadius = 6371000; // meters
-    final double dLat = _deg2rad(b.latitude - a.latitude);
-    final double dLon = _deg2rad(b.longitude - a.longitude);
-    final double lat1 = _deg2rad(a.latitude);
-    final double lat2 = _deg2rad(b.latitude);
-    final double sinHalfDLat = math.sin(dLat / 2);
-    final double sinHalfDLon = math.sin(dLon / 2);
-    final double h = sinHalfDLat * sinHalfDLat + math.cos(lat1) * math.cos(lat2) * sinHalfDLon * sinHalfDLon;
-    final double c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
-    return earthRadius * c;
-  }
-
-  double _deg2rad(double deg) => deg * (math.pi / 180);
+  
 
   // Map configuration
   static final latlng.LatLng _defaultCenter = latlng.LatLng(MapConfig.defaultLatitude, MapConfig.defaultLongitude);
@@ -73,13 +72,24 @@ class _MapScreenFreeState extends State<MapScreenFree> {
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
+    _pulse = Tween<double>(begin: 0.9, end: 1.2).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
+    _pulseController.repeat(reverse: true);
     _initializeMap();
     if (widget.searchQuery != null) {
-      _searchQuery = widget.searchQuery!;
+      // no-op: search overlay removed
     }
     if (widget.category != null) {
-      _selectedCategory = widget.category!;
+      // no-op: category UI removed
     }
+  }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    _routeUpdateTimer?.cancel();
+    _pulseController.dispose();
+    super.dispose();
   }
 
   Future<void> _initializeMap() async {
@@ -114,12 +124,43 @@ class _MapScreenFreeState extends State<MapScreenFree> {
         try {
           _mapController.move(_currentLocation!, MapConfig.defaultZoom);
         } catch (_) {}
+
+        // Start live location updates
+        _startPositionStream();
       }
       
       // If shops are provided from previous screen, render them
       if (widget.shopsOverride != null && widget.shopsOverride!.isNotEmpty) {
         _shops = widget.shopsOverride!;
         _updateMarkers();
+        // If a specific destination was provided, draw route immediately
+        if (widget.routeToShop != null && _currentLocation != null) {
+          _selectedShop = widget.routeToShop!;
+          _drawRouteTo(widget.routeToShop!);
+        }
+        // If asked to draw routes for all, draw to up to 5 closest by distance
+        if (widget.drawRoutesForAll && _currentLocation != null) {
+          final List<Shop> sorted = List<Shop>.from(_shops);
+          sorted.sort((a, b) => _haversineMeters(_toLL(a), _currentLocation!).compareTo(_haversineMeters(_toLL(b), _currentLocation!)));
+          final List<Shop> subset = sorted.take(5).toList();
+          // Draw a combined polyline by concatenating individual routes start->shop
+          _routePolyline.clear();
+          for (final shop in subset) {
+            await RoutingService.getRoute(start: _currentLocation!, end: _toLL(shop)).then((route) {
+              if (route != null && route.points.length >= 2) {
+                _routePolyline.addAll(route.points);
+              } else {
+                _routePolyline..add(_currentLocation!)..add(_toLL(shop));
+              }
+            }).catchError((_) {
+              _routePolyline..add(_currentLocation!)..add(_toLL(shop));
+            });
+          }
+          if (mounted) {
+            setState(() {});
+            _fitRouteToView();
+          }
+        }
       }
     } catch (e) {
       debugPrint('Error initializing map: $e');
@@ -154,108 +195,16 @@ class _MapScreenFreeState extends State<MapScreenFree> {
     );
   }
 
-  Future<void> _loadShops() async {
-    try {
-      if (mounted) {
-        setState(() {
-          _isLoading = true;
-        });
-      }
-
-      // If UI passes in override shops (mock), use them directly
-      if (widget.shopsOverride != null && widget.shopsOverride!.isNotEmpty) {
-        _shops = widget.shopsOverride!;
-        _rankAndRecommend();
-        _updateMarkers();
-        return;
-      }
-
-      if (_currentLocation == null) {
-        return;
-      }
-
-      final result = await ShopService.getNearbyShops(
-        latitude: _currentLocation!.latitude,
-        longitude: _currentLocation!.longitude,
-        radius: 5000,
-      );
-
-      if (result['success'] == true) {
-        final List<dynamic> raw = result['shops'] as List<dynamic>;
-        final List<Shop> shops = raw.map((s) {
-          final Map<String, dynamic> shop = s as Map<String, dynamic>;
-          final loc = shop['location'] as Map<String, dynamic>?;
-          final coords = (loc != null ? loc['coordinates'] : null) as List<dynamic>?;
-          final double latitude = coords != null && coords.length == 2 ? (coords[1] as num).toDouble() : 0.0;
-          final double longitude = coords != null && coords.length == 2 ? (coords[0] as num).toDouble() : 0.0;
-          // Compute rough distance in km if we have current location
-          double distanceKm = 0.0;
-          if (_currentLocation != null) {
-            distanceKm = _distanceMeters(_currentLocation!, latlng.LatLng(latitude, longitude)) / 1000.0;
-          }
-          return Shop(
-            id: (shop['_id'] ?? shop['id'] ?? '').toString(),
-            name: (shop['shopName'] ?? shop['name'] ?? '').toString(),
-            category: shop['category']?.toString() ?? '',
-            address: (shop['address'] ?? '').toString(),
-            latitude: latitude,
-            longitude: longitude,
-            rating: (shop['rating'] as num?)?.toDouble() ?? 0.0,
-            reviewCount: (shop['reviewCount'] as int?) ?? 0,
-            distance: distanceKm,
-            offers: const [],
-            isOpen: shop['isLive'] == true,
-            openingHours: '',
-            phone: (shop['phone'] ?? '').toString(),
-            imageUrl: null,
-            description: null,
-            amenities: const [],
-            lastUpdated: null,
-          );
-        }).toList();
-
-        if (mounted) {
-          setState(() {
-            _shops = shops;
-          });
-        }
-
-        if (_currentLocation != null && _shops.isNotEmpty) {
-          _shops.sort((a, b) {
-            final da = _distanceMeters(_currentLocation!, latlng.LatLng(a.latitude, a.longitude));
-            final db = _distanceMeters(_currentLocation!, latlng.LatLng(b.latitude, b.longitude));
-            return da.compareTo(db);
-          });
-        }
-
-        _rankAndRecommend();
-        _updateMarkers();
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'] ?? 'Failed to load shops')),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Error loading shops: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load shops')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
+  
 
   void _updateMarkers() {
     _markers.clear();
-    for (final shop in _shops) {
+    final Iterable<Shop> source = _shops.where((s) {
+      if (_openNowOnly && !s.isOpen) return false;
+      if (s.rating < _minRating) return false;
+      return true;
+    });
+    for (final shop in source) {
       final double discount = shop.offers.isNotEmpty ? shop.offers.first.discount : 0.0;
       final double rating = shop.rating;
       Color pinColor = const Color(0xFF2979FF); // default blue
@@ -267,23 +216,49 @@ class _MapScreenFreeState extends State<MapScreenFree> {
       _markers.add(
         Marker(
           point: latlng.LatLng(shop.latitude, shop.longitude),
-          width: 44,
-          height: 44,
+          width: 56,
+          height: 64,
           child: GestureDetector(
             onTap: () => _onMarkerTapped(shop),
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                Positioned(
+                  top: 8,
             child: Container(
+                    width: 44,
+                    height: 44,
               decoration: BoxDecoration(
+                      color: pinColor,
                 shape: BoxShape.circle,
-                color: pinColor,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  )
-                ],
-              ),
-              child: const Icon(Icons.location_on, color: Colors.white),
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                    child: const Icon(Icons.store, color: Colors.white, size: 20),
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      rating.toStringAsFixed(1),
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -292,27 +267,7 @@ class _MapScreenFreeState extends State<MapScreenFree> {
     if (mounted) setState(() {});
   }
 
-  void _rankAndRecommend() {
-    if (_shops.isEmpty) {
-      _recommendedShop = null;
-      return;
-    }
-    // Simple weighted score: distance (lower better), discount (higher better), rating (higher better)
-    double bestScore = -1e9;
-    Shop? best;
-    for (final s in _shops) {
-      final double distanceScore = -s.distance; // closer better
-      final double discount = s.offers.isNotEmpty ? s.offers.map((o) => o.discount).reduce((a, b) => a > b ? a : b) : 0.0;
-      final double discountScore = discount / 100.0;
-      final double ratingScore = s.rating / 5.0;
-      final double score = (0.5 * ratingScore) + (0.3 * discountScore) + (0.2 * distanceScore);
-      if (score > bestScore) {
-        bestScore = score;
-        best = s;
-      }
-    }
-    _recommendedShop = best;
-  }
+  
 
   // For category-based styling we style in builder above; no BitmapDescriptor in flutter_map
 
@@ -320,39 +275,12 @@ class _MapScreenFreeState extends State<MapScreenFree> {
     if (mounted) {
       setState(() {
         _selectedShop = shop;
-        _showShopDetails = true;
         _drawRouteTo(shop);
       });
     }
   }
 
-  void _onSearch(String query) {
-    if (!mounted) return;
-    setState(() {
-      _searchQuery = query;
-      _showSearchOverlay = false;
-    });
-    // Test-only: center map using Nominatim forward geocoding
-    GeocodingService.forwardSearch(query).then((res) {
-      if (!mounted || res == null) {
-        _loadShops();
-        return;
-      }
-      _mapController.move(latlng.LatLng(res.center.latitude, res.center.longitude), 14);
-      _loadShops();
-    }).catchError((_) {
-      _loadShops();
-    });
-  }
-
-  void _onCategoryChanged(String category) {
-    if (mounted) {
-      setState(() {
-        _selectedCategory = category;
-      });
-    }
-    _loadShops();
-  }
+  
 
   void _onMyLocationPressed() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -367,26 +295,27 @@ class _MapScreenFreeState extends State<MapScreenFree> {
       final location = latlng.LatLng(position.latitude, position.longitude);
       setState(() {
         _currentLocation = location;
+        _followUser = true;
       });
       _mapController.move(location, 16.0);
+      if (_selectedShop != null) {
+        _drawRouteTo(_selectedShop!);
+      }
     }
   }
 
-  void _onDirectionsPressed(Shop shop) {
-    // Open Google Maps for directions
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening directions to ${shop.name}'),
-        action: SnackBarAction(
-          label: 'OK',
-          onPressed: () {},
-        ),
-      ),
-    );
-  }
+  
 
   void _drawRouteTo(Shop shop) {
+    _routeUpdateTimer?.cancel();
+    _routeUpdateTimer = Timer(const Duration(milliseconds: 500), () {
+      _drawRouteToImmediate(shop);
+    });
+  }
+
+  void _drawRouteToImmediate(Shop shop) {
     _routePolyline.clear();
+    _routeArrows.clear();
     if (_currentLocation == null) return;
     final start = _currentLocation!;
     final end = latlng.LatLng(shop.latitude, shop.longitude);
@@ -398,19 +327,23 @@ class _MapScreenFreeState extends State<MapScreenFree> {
           _routePolyline
             ..clear()
             ..addAll(route.points);
+          _ensureRouteAnchors(start, end);
+          _lastRouteKm = (route.distanceMeters / 1000.0);
+          _lastRouteMin = (route.durationSeconds / 60.0).round();
+          _buildRouteArrows();
         });
-        final km = (route.distanceMeters / 1000.0).toStringAsFixed(1);
-        final min = (route.durationSeconds / 60.0).round();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Route: $km km • ~$min min')),
-        );
+        _fitRouteToView();
       } else {
         setState(() {
           _routePolyline
             ..clear()
             ..add(start)
             ..add(end);
+          _lastRouteKm = _haversineMeters(start, end) / 1000.0;
+          _lastRouteMin = 0;
+          _buildRouteArrows();
         });
+        _fitRouteToView();
       }
     }).catchError((_) {
       if (!mounted) return;
@@ -419,8 +352,348 @@ class _MapScreenFreeState extends State<MapScreenFree> {
           ..clear()
           ..add(start)
           ..add(end);
+        _lastRouteKm = _haversineMeters(start, end) / 1000.0;
+        _lastRouteMin = 0;
+        _buildRouteArrows();
       });
+      _fitRouteToView();
     });
+  }
+
+  void _drawRouteToPoint(latlng.LatLng point) {
+    _routeUpdateTimer?.cancel();
+    _routeUpdateTimer = Timer(const Duration(milliseconds: 500), () {
+      _drawRouteToPointImmediate(point);
+    });
+  }
+
+  void _drawRouteToPointImmediate(latlng.LatLng point) {
+    _routePolyline.clear();
+    _routeArrows.clear();
+    if (_currentLocation == null) return;
+    final start = _currentLocation!;
+    final end = point;
+    RoutingService.getRoute(start: start, end: end).then((route) {
+      if (!mounted) return;
+      if (route != null && route.points.length >= 2) {
+        setState(() {
+          _routePolyline
+            ..clear()
+            ..addAll(route.points);
+          _ensureRouteAnchors(start, end);
+          _lastRouteKm = (route.distanceMeters / 1000.0);
+          _lastRouteMin = (route.durationSeconds / 60.0).round();
+          _buildRouteArrows();
+        });
+        _fitRouteToView();
+      } else {
+        setState(() {
+          _routePolyline
+            ..clear()
+            ..add(start)
+            ..add(end);
+          _lastRouteKm = _haversineMeters(start, end) / 1000.0;
+          _lastRouteMin = 0;
+          _buildRouteArrows();
+        });
+        _fitRouteToView();
+      }
+    }).catchError((_) {
+      if (!mounted) return;
+      setState(() {
+        _routePolyline
+          ..clear()
+          ..add(start)
+          ..add(end);
+        _lastRouteKm = _haversineMeters(start, end) / 1000.0;
+        _lastRouteMin = 0;
+        _buildRouteArrows();
+      });
+      _fitRouteToView();
+    });
+  }
+
+  void _startPositionStream() {
+    _positionSub?.cancel();
+    const LocationSettings settings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10, // Increased from 5 to reduce updates
+    );
+    _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen((Position pos) {
+      final latlng.LatLng newLoc = latlng.LatLng(pos.latitude, pos.longitude);
+      if (!mounted) return;
+      
+      double distance = 0.0;
+      // Only update if location changed significantly (more than 10 meters)
+      if (_currentLocation != null) {
+        distance = _haversineMeters(_currentLocation!, newLoc);
+        if (distance < 10) return; // Skip update if movement is less than 10 meters
+      }
+      
+      setState(() {
+        _currentLocation = newLoc;
+      });
+      if (_followUser) {
+        try {
+          _mapController.move(newLoc, MapConfig.defaultZoom);
+        } catch (_) {}
+      }
+      // Only redraw routes if user is following location and moved significantly
+      if (_followUser && _selectedShop != null && distance >= 10) {
+        _drawRouteTo(_selectedShop!);
+      } else if (_followUser && _customDestination != null && distance >= 10) {
+        _drawRouteToPoint(_customDestination!);
+      }
+    });
+  }
+
+  void _ensureRouteAnchors(latlng.LatLng start, latlng.LatLng end) {
+    if (_routePolyline.isEmpty) return;
+    final latlng.LatLng first = _routePolyline.first;
+    final latlng.LatLng last = _routePolyline.last;
+    const double tol = 1e-6; // ~0.1m tolerance
+    bool firstMatches = (first.latitude - start.latitude).abs() < tol && (first.longitude - start.longitude).abs() < tol;
+    bool lastMatches = (last.latitude - end.latitude).abs() < tol && (last.longitude - end.longitude).abs() < tol;
+    if (!firstMatches) {
+      _routePolyline.insert(0, start);
+    }
+    if (!lastMatches) {
+      _routePolyline.add(end);
+    }
+  }
+
+  void _fitRouteToView() {
+    if (_routePolyline.length < 2) return;
+    final bounds = LatLngBounds(_routePolyline.first, _routePolyline.first);
+    for (final p in _routePolyline.skip(1)) {
+      bounds.extend(p);
+    }
+    try {
+      _mapController.fitCamera(CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.fromLTRB(32, 120, 32, 160),
+      ));
+    } catch (_) {}
+  }
+
+  void _buildRouteArrows() {
+    _routeArrows.clear();
+    _routeLabels.clear();
+    if (_routePolyline.length < 3) return;
+    const int step = 12; // place arrow about every 12 points
+    for (int i = 0; i < _routePolyline.length - 1; i += step) {
+      final a = _routePolyline[i];
+      final b = _routePolyline[(i + 1).clamp(0, _routePolyline.length - 1)];
+      final double bearingRad = _bearingRadians(a, b);
+      _routeArrows.add(
+        Marker(
+          point: a,
+          width: 20,
+          height: 20,
+          child: Transform.rotate(
+            angle: bearingRad,
+            child: const Icon(Icons.navigation, size: 16, color: Color(0xFF2979FF)),
+          ),
+        ),
+      );
+    }
+
+    // Add distance label at midpoint
+    final int mid = (_routePolyline.length / 2).floor();
+    final latlng.LatLng midPoint = _routePolyline[mid];
+    _routeLabels.add(
+      Marker(
+        point: midPoint,
+        width: 160,
+        height: 44,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 3)),
+            ],
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Center(
+            child: Text('${_formatDistanceKm(_lastRouteKm)} • ${_lastRouteMin > 0 ? '~$_lastRouteMin min' : 'ETA n/a'}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _bearingRadians(latlng.LatLng a, latlng.LatLng b) {
+    final double lat1 = a.latitude * 3.141592653589793 / 180.0;
+    final double lat2 = b.latitude * 3.141592653589793 / 180.0;
+    final double dLon = (b.longitude - a.longitude) * 3.141592653589793 / 180.0;
+    final double y = math.sin(dLon) * math.cos(lat2);
+    final double x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    return math.atan2(y, x);
+  }
+
+  double _haversineMeters(latlng.LatLng a, latlng.LatLng b) {
+    const double R = 6371000.0; // meters
+    final double dLat = (b.latitude - a.latitude) * 3.141592653589793 / 180.0;
+    final double dLon = (b.longitude - a.longitude) * 3.141592653589793 / 180.0;
+    final double lat1 = a.latitude * 3.141592653589793 / 180.0;
+    final double lat2 = b.latitude * 3.141592653589793 / 180.0;
+    final double sinDLat = math.sin(dLat / 2);
+    final double sinDLon = math.sin(dLon / 2);
+    final double h = sinDLat * sinDLat + math.cos(lat1) * math.cos(lat2) * sinDLon * sinDLon;
+    final double c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
+    return R * c;
+  }
+
+  String _formatDistanceKm(double km) {
+    if (km < 1.0) {
+      final int meters = (km * 1000).round();
+      return '$meters m';
+    }
+    return '${km.toStringAsFixed(1)} km';
+  }
+
+  latlng.LatLng _toLL(Shop s) => latlng.LatLng(s.latitude, s.longitude);
+
+  void _showSearchDialog() {
+    setState(() {
+      _showSearchOverlay = true;
+    });
+  }
+
+  Widget _buildSearchContent(bool isTablet) {
+    final TextEditingController controller = TextEditingController();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.search, color: Color(0xFF6B7280)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search stores or products...',
+                  border: InputBorder.none,
+                ),
+                onSubmitted: (value) async {
+                  if (value.trim().isEmpty) return;
+                  // Use existing SearchService to find shops
+                  try {
+                    final results = await SearchService.searchShops(value);
+                    setState(() {
+                      _shops = results;
+                      _selectedShop = null;
+                      _routePolyline.clear();
+                      _updateMarkers();
+                      _showSearchOverlay = false;
+                    });
+                    if (_shops.isNotEmpty) {
+                      // Center on first result
+                      _mapController.move(latlng.LatLng(_shops.first.latitude, _shops.first.longitude), 15.0);
+                    }
+                  } catch (_) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Search failed')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Color(0xFF6B7280)),
+              onPressed: () => setState(() => _showSearchOverlay = false),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        double tempMin = _minRating;
+        bool tempOpen = _openNowOnly;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Text('Filters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Minimum Rating'),
+                      Text(tempMin.toStringAsFixed(1)),
+                    ],
+                  ),
+                  Slider(
+                    value: tempMin,
+                    onChanged: (v) => setModalState(() => tempMin = v),
+                    min: 0.0,
+                    max: 5.0,
+                    divisions: 10,
+                    label: tempMin.toStringAsFixed(1),
+                  ),
+                  SwitchListTile(
+                    value: tempOpen,
+                    onChanged: (v) => setModalState(() => tempOpen = v),
+                    title: const Text('Open now only'),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _minRating = tempMin;
+                          _openNowOnly = tempOpen;
+                          _updateMarkers();
+                        });
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2979FF),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Apply'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -436,7 +709,31 @@ class _MapScreenFreeState extends State<MapScreenFree> {
             options: MapOptions(
               initialCenter: _currentLocation ?? _defaultCenter,
               initialZoom: MapConfig.defaultZoom,
-              interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all,
+                scrollWheelVelocity: 0.005, // Reduce scroll sensitivity
+                pinchZoomWinGestures: MultiFingerGesture.none, // Disable pinch zoom on Windows
+              ),
+              onTap: (tapPosition, point) {
+                if (!mounted) return;
+                // Only clear routes if user taps on empty area (not on markers)
+                // This prevents accidental clearing when interacting with map elements
+                setState(() {
+                  _selectedShop = null;
+                  _customDestination = null;
+                  _routePolyline.clear();
+                  _routeArrows.clear();
+                  _routeLabels.clear();
+                });
+              },
+              onLongPress: (tapPosition, point) {
+                if (!mounted) return;
+                setState(() {
+                  _selectedShop = null;
+                  _customDestination = point;
+                });
+                _drawRouteToPoint(point);
+              },
             ),
             children: [
               TileLayer(
@@ -458,29 +755,99 @@ class _MapScreenFreeState extends State<MapScreenFree> {
                 MarkerLayer(markers: [
                   Marker(
                     point: _currentLocation!,
-                    width: 24,
-                    height: 24,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2979FF),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [
-                          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 2)),
-                        ],
+                    width: 30,
+                    height: 30,
+                    child: ScaleTransition(
+                      scale: _pulse,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3)),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ]),
-              // Removed shop markers - only show user location
-              // if (_markers.isNotEmpty) MarkerLayer(markers: _markers),
-              // Removed route polylines - no shop routes in map view
-              // if (_routePolyline.length >= 2)
-              //   PolylineLayer(
-              //     polylines: [
-              //       Polyline(points: _routePolyline, color: const Color(0xFF2979FF), strokeWidth: 4),
-              //     ],
-              //   ),
+              if (_markers.isNotEmpty)
+                MarkerLayer(markers: _markers),
+              if (_selectedShop != null)
+                MarkerLayer(markers: [
+                  Marker(
+                    point: latlng.LatLng(_selectedShop!.latitude, _selectedShop!.longitude),
+                    width: 220,
+                    height: 60,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 10, offset: const Offset(0, 4)),
+                            ],
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                          ),
+                          child: Text(
+                            _selectedShop!.name,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]),
+              if (_customDestination != null)
+                MarkerLayer(markers: [
+                  Marker(
+                    point: _customDestination!,
+                    width: 48,
+                    height: 48,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3)),
+                        ],
+                      ),
+                      child: const Icon(Icons.flag, color: Colors.white, size: 20),
+                    ),
+                  ),
+                ]),
+              if (_routePolyline.length >= 2)
+                PolylineLayer(
+                  polylines: [
+                    // soft outer glow
+                    Polyline(points: _routePolyline, color: const Color(0x6693C5FD), strokeWidth: 16),
+                    // inner white core for contrast
+                    Polyline(points: _routePolyline, color: Colors.white.withValues(alpha: 0.85), strokeWidth: 10),
+                    // main light UI blue line
+                    Polyline(points: _routePolyline, color: const Color(0xFF60A5FA), strokeWidth: 7),
+                  ],
+                ),
+              if (_routeArrows.isNotEmpty)
+                MarkerLayer(markers: _routeArrows),
+              if (_routeLabels.isNotEmpty)
+                MarkerLayer(markers: _routeLabels),
+              // Attribution
+              RichAttributionWidget(
+                popupBackgroundColor: Colors.white,
+                attributions: [
+                  TextSourceAttribution(
+                    MapConfig.attribution,
+                    onTap: () {},
+                  ),
+                  ],
+                ),
             ],
           ),
           
@@ -511,19 +878,29 @@ class _MapScreenFreeState extends State<MapScreenFree> {
           ),
           
           // Search Overlay
-          // Removed search overlay - search moved to stores screen
-          if (false)
-            SearchOverlay(
-              onSearch: _onSearch,
-              onCategoryChanged: _onCategoryChanged,
-              selectedCategory: _selectedCategory,
-              searchQuery: _searchQuery,
-              onClose: () {
-                setState(() {
-                  _showSearchOverlay = false;
-                });
-              },
+          // Search Overlay - simple inline search dialog
+          if (_showSearchOverlay)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => setState(() => _showSearchOverlay = false),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  alignment: Alignment.topCenter,
+                  child: Container(
+                    margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + (isTablet ? 72 : 60)),
+                    padding: const EdgeInsets.all(12),
+                    width: MediaQuery.of(context).size.width - (isTablet ? 80 : 48),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 12, offset: const Offset(0, 4))],
+                    ),
+                    child: _buildSearchContent(isTablet),
+                  ),
+                ),
+              ),
             ),
+          
           
           // Map Controls - only show my location button
           if (true)
@@ -531,102 +908,71 @@ class _MapScreenFreeState extends State<MapScreenFree> {
               top: MediaQuery.of(context).padding.top + (isTablet ? 20 : 16),
               right: isTablet ? 20 : 16,
               child: MapControls(
-                onSearchPressed: () {
-                  setState(() {
-                    _showSearchOverlay = true;
-                  });
-                },
+                onSearchPressed: _showSearchDialog,
                 onMyLocationPressed: _onMyLocationPressed,
-                onFilterPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Filter options coming soon!')),
-                  );
-                },
+                onFilterPressed: _showFilterSheet,
               ),
             )
-          else
+          ,
+
+          // Directions button removed per request; use long-press to set destination and draw route.
+
+          // Route info pill
+          if (_routePolyline.length >= 2)
             Positioned(
-              top: MediaQuery.of(context).padding.top + (isTablet ? 20 : 16),
-              right: isTablet ? 20 : 16,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2)),
-                  ],
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.my_location, color: Color(0xFF2979FF)),
-                  onPressed: _onMyLocationPressed,
-                  tooltip: 'My location',
-                ),
+              bottom: 20,
+              left: 16,
+              right: 16,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.directions, color: Color(0xFF2979FF), size: 18),
+                          const SizedBox(width: 8),
+                          Text('${_formatDistanceKm(_lastRouteKm)} • ${_lastRouteMin > 0 ? '~$_lastRouteMin min' : 'ETA n/a'}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.center_focus_strong),
+                            tooltip: 'Recenter route',
+                            onPressed: _fitRouteToView,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.clear),
+                            tooltip: 'Clear route',
+                            onPressed: () {
+                              setState(() {
+                                _routePolyline.clear();
+                                _routeArrows.clear();
+                                _customDestination = null;
+                                _selectedShop = null;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           
           // Removed shop details - no shop interactions in map view
-          if (false)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: ShopInfoWindow(
-                shop: _selectedShop!,
-                onClose: () {
-                  if (mounted) {
-                    setState(() {
-                      _showShopDetails = false;
-                      _selectedShop = null;
-                      _routePolyline.clear();
-                    });
-                  }
-                },
-                onDirections: () => _onDirectionsPressed(_selectedShop!),
-                onViewDetails: () {
-                  // TODO: Navigate to shop details page
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Opening ${_selectedShop!.name} details')),
-                  );
-                },
-              ),
-            ),
+          
 
           // Removed recommendation banner - recommendations moved to stores screen
-          if (false)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + (isTablet ? 90 : 80),
-              left: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.emoji_events, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Recommended: ${_recommendedShop!.name} — ${_recommendedShop!.offers.isNotEmpty ? _recommendedShop!.offers.first.formattedDiscount : 'Great rating'}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        _onMarkerTapped(_recommendedShop!);
-                        _mapController.move(latlng.LatLng(_recommendedShop!.latitude, _recommendedShop!.longitude), 15);
-                      },
-                      child: const Text('VIEW', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          
           
           // Loading Indicator
           if (_isLoading)

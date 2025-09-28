@@ -14,6 +14,8 @@ import 'screens/map_screen_free.dart';
 import 'screens/shop_details_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/shop_comparison_screen.dart';
+import 'screens/favorites_screen.dart';
+import 'screens/stores_screen.dart';
 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -184,40 +186,8 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
           return ShopComparisonScreen(shops: args?['shops'] ?? []);
         },
-        '/stores': (context) => const Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.store, size: 64, color: Color(0xFF2979FF)),
-                SizedBox(height: 16),
-                Text(
-                  'Stores Screen',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 8),
-                Text('Coming Soon!', style: TextStyle(fontSize: 16)),
-              ],
-            ),
-          ),
-        ),
-        '/favorites': (context) => const Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.favorite, size: 64, color: Color(0xFF2979FF)),
-                SizedBox(height: 16),
-                Text(
-                  'Favorites Screen',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 8),
-                Text('Coming Soon!', style: TextStyle(fontSize: 16)),
-              ],
-            ),
-          ),
-        ),
+        '/stores': (context) => const StoresScreen(),
+        '/favorites': (context) => const FavoritesScreen(),
 
       },
     );

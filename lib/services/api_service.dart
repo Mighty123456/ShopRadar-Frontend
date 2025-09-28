@@ -6,6 +6,7 @@ import 'network_config.dart';
 
 class ApiService {
   static String get baseUrl => NetworkConfig.baseUrl;
+  static String get webSocketUrl => NetworkConfig.webSocketUrl;
 
   static Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();

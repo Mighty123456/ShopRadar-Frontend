@@ -1,9 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/animated_message_dialog.dart';
 import 'map_screen_free.dart';
 import '../services/notification_service.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../services/location_service.dart';
+import '../services/shop_service.dart';
+import '../services/recent_search_service.dart';
+import '../services/featured_offers_service.dart';
+import '../models/shop.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,12 +25,21 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isMapView = false;
   int _unreadNotifications = 0;
   UserModel? _currentUser;
+  List<Shop> _nearbyShops = const [];
+  bool _loadingNearby = false;
+  List<String> _recentSearches = const [];
+  List<FeaturedOffer> _featuredOffers = [];
+  bool _loadingOffers = false;
+  StreamSubscription<List<FeaturedOffer>>? _offersSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadNotificationCount();
     _enforceRoleAccess();
+    _loadRecentSearches();
+    _loadNearbyStores();
+    _initializeFeaturedOffers();
     // Show welcome message after a short delay
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 500), () {
@@ -33,6 +48,131 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
     });
+  }
+  Future<void> _loadRecentSearches() async {
+    final List<String> recents = await RecentSearchService.getRecentSearches();
+    if (!mounted) return;
+    setState(() {
+      _recentSearches = recents;
+    });
+  }
+
+  Future<void> _initializeFeaturedOffers() async {
+    setState(() {
+      _loadingOffers = true;
+    });
+
+    try {
+      // Initialize WebSocket connection
+      await FeaturedOffersService().initializeWebSocket();
+      
+      // Listen to real-time updates
+      _offersSubscription = FeaturedOffersService().offersStream.listen((offers) {
+        if (mounted) {
+          setState(() {
+            _featuredOffers = offers;
+            _loadingOffers = false;
+          });
+        }
+      });
+
+      // Fetch initial offers
+      try {
+        final position = await LocationService.getCurrentLocation();
+        if (position != null) {
+          await FeaturedOffersService().fetchFeaturedOffers(
+            latitude: position.latitude,
+            longitude: position.longitude,
+            limit: 10,
+          );
+        } else {
+          // If location is null, fetch offers without location filter
+          await FeaturedOffersService().fetchFeaturedOffers(limit: 10);
+        }
+      } catch (e) {
+        // If location fails, fetch offers without location filter
+        await FeaturedOffersService().fetchFeaturedOffers(limit: 10);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingOffers = false;
+        });
+      }
+      debugPrint('Error initializing featured offers: $e');
+    }
+  }
+
+  Future<void> _loadNearbyStores() async {
+    setState(() {
+      _loadingNearby = true;
+    });
+    try {
+      final position = await LocationService.getCurrentLocation();
+      if (position == null) {
+        if (mounted) {
+          setState(() {
+            _nearbyShops = const [];
+            _loadingNearby = false;
+          });
+        }
+        return;
+      }
+      final result = await ShopService.getNearbyShops(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      if (!mounted) return;
+      if (result['success'] == true && result['shops'] is List) {
+        final List<dynamic> list = result['shops'] as List<dynamic>;
+        final shops = list.map((e) => Shop(
+          id: (e['_id'] ?? e['id'] ?? '').toString(),
+          name: (e['shopName'] ?? e['name'] ?? '').toString(),
+          category: (e['category'] ?? '').toString(),
+          address: (e['address'] ?? '').toString(),
+          latitude: (e['latitude'] is num)
+              ? (e['latitude'] as num).toDouble()
+              : (e['location']?['coordinates'] is List && (e['location']['coordinates'] as List).length >= 2)
+                  ? ((e['location']['coordinates'][1] as num).toDouble())
+                  : 0.0,
+          longitude: (e['longitude'] is num)
+              ? (e['longitude'] as num).toDouble()
+              : (e['location']?['coordinates'] is List && (e['location']['coordinates'] as List).length >= 2)
+                  ? ((e['location']['coordinates'][0] as num).toDouble())
+                  : 0.0,
+          rating: (e['rating'] as num?)?.toDouble() ?? 0.0,
+          reviewCount: (e['reviewCount'] as int?) ?? (e['reviewsCount'] as int?) ?? 0,
+          distance: (e['distanceKm'] as num?)?.toDouble() ?? (e['distance'] as num?)?.toDouble() ?? 0.0,
+          offers: const [],
+          isOpen: e['isLive'] == true || e['isOpen'] == true,
+          openingHours: (e['openingHours'] ?? '').toString(),
+          phone: (e['phone'] ?? '').toString(),
+          imageUrl: e['imageUrl']?.toString(),
+          description: e['description']?.toString(),
+          amenities: const [],
+          lastUpdated: null,
+        )).toList();
+        setState(() {
+          _nearbyShops = shops;
+        });
+      } else {
+        setState(() {
+          _nearbyShops = const [];
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _nearbyShops = const [];
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingNearby = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadNotificationCount() async {
@@ -292,9 +432,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               vertical: isLargeTablet ? 16 : (isTablet ? 14 : 12),
                             ),
                           ),
-                          onSubmitted: (value) {
+                          onSubmitted: (value) async {
                             if (value.isNotEmpty) {
-                              Navigator.of(context).pushNamed('/search-results', arguments: {'query': value});
+                              final navigator = Navigator.of(context);
+                              await RecentSearchService.addSearch(value);
+                              await _loadRecentSearches();
+                              navigator.pushNamed('/search-results', arguments: {'query': value});
                             }
                           },
                         ),
@@ -548,7 +691,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: isLargeTablet ? 320 : (isTablet ? 280 : 240), // Increased height for better content display
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  itemCount: 5,
+                  itemCount: _loadingOffers ? 3 : (_featuredOffers.isEmpty ? 1 : _featuredOffers.length),
                   padding: EdgeInsets.symmetric(horizontal: 4),
                   itemBuilder: (context, index) {
                     return _buildFeaturedOfferCard(index, isSmallScreen, isTablet, isLargeTablet);
@@ -634,15 +777,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFeaturedOfferCard(int index, bool isSmallScreen, bool isTablet, bool isLargeTablet) {
-    final offers = [
-      {'title': '50% Off Electronics', 'subtitle': 'Limited Time', 'color': Colors.orange},
-      {'title': 'Buy 2 Get 1 Free', 'subtitle': 'Fashion Week', 'color': Colors.pink},
-      {'title': 'Free Delivery', 'subtitle': 'On Orders \$50+', 'color': Colors.green},
-      {'title': 'Flash Sale', 'subtitle': 'Ends Tonight', 'color': Colors.red},
-      {'title': 'New Arrivals', 'subtitle': 'Fresh Stock', 'color': Colors.blue},
-    ];
+    // Use real data if available, otherwise show loading or fallback
+    if (_loadingOffers) {
+      return _buildLoadingOfferCard(isSmallScreen, isTablet, isLargeTablet);
+    }
     
-    final offer = offers[index % offers.length];
+    if (_featuredOffers.isEmpty) {
+      return _buildEmptyOfferCard(isSmallScreen, isTablet, isLargeTablet);
+    }
+    
+    final offer = _featuredOffers[index % _featuredOffers.length];
+    final colors = [Colors.orange, Colors.pink, Colors.green, Colors.red, Colors.blue, Colors.purple, Colors.teal];
+    final color = colors[index % colors.length];
     
     return Container(
       width: isLargeTablet ? 280 : (isTablet ? 240 : 200),
@@ -650,21 +796,21 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            offer['color'] as Color,
-            (offer['color'] as Color).withValues(alpha: 0.8),
+            color,
+            color.withValues(alpha: 0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-                    borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+        borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
         boxShadow: [
           BoxShadow(
-            color: (offer['color'] as Color).withValues(alpha: 0.3),
+            color: color.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
-              ),
-            ],
           ),
+        ],
+      ),
             child: Padding(
               padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
               child: Column(
@@ -674,24 +820,47 @@ class _HomeScreenState extends State<HomeScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                  Text(
-                    offer['title'] as String,
-                    style: TextStyle(
+                Text(
+                  offer.title,
+                  style: TextStyle(
                     color: Colors.white,
-                      fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                      fontWeight: FontWeight.bold,
+                    fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
+                    fontWeight: FontWeight.bold,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
                 Text(
-                  offer['subtitle'] as String,
-                          style: TextStyle(
+                  offer.formattedDiscount,
+                  style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
-                        ),
-                      ),
-                    ],
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
+                SizedBox(height: isLargeTablet ? 4 : 2),
+                Text(
+                  offer.shop.name,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (offer.daysRemaining > 0) ...[
+                  SizedBox(height: isLargeTablet ? 4 : 2),
+                  Text(
+                    '${offer.daysRemaining} days left',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: isLargeTablet ? 10 : (isTablet ? 8 : 6),
+                    ),
+                  ),
+                ],
+              ],
+            ),
                   Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -716,20 +885,108 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildLoadingOfferCard(bool isSmallScreen, bool isTablet, bool isLargeTablet) {
+    return Container(
+      width: isLargeTablet ? 280 : (isTablet ? 240 : 200),
+      margin: EdgeInsets.only(right: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              height: isLargeTablet ? 20 : (isTablet ? 16 : 14),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+            Container(
+              height: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+              width: 100,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+            Container(
+              height: isLargeTablet ? 14 : (isTablet ? 12 : 10),
+              width: 80,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyOfferCard(bool isSmallScreen, bool isTablet, bool isLargeTablet) {
+    return Container(
+      width: isLargeTablet ? 280 : (isTablet ? 240 : 200),
+      margin: EdgeInsets.only(right: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.local_offer_outlined,
+              color: Colors.grey[400],
+              size: isLargeTablet ? 32 : (isTablet ? 28 : 24),
+            ),
+            SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+            Text(
+              'No offers available',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: isLargeTablet ? 4 : 2),
+            Text(
+              'Check back later',
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildNearbyStoresList(bool isSmallScreen, bool isTablet, bool isLargeTablet) {
-    final stores = [
-      {'name': 'TechMart', 'distance': '0.5 km', 'rating': 4.5, 'category': 'Electronics'},
-      {'name': 'Fashion Hub', 'distance': '0.8 km', 'rating': 4.2, 'category': 'Fashion'},
-      {'name': 'Fresh Market', 'distance': '1.2 km', 'rating': 4.7, 'category': 'Grocery'},
-      {'name': 'Sports Zone', 'distance': '1.5 km', 'rating': 4.3, 'category': 'Sports'},
-    ];
-    
+    if (_loadingNearby) {
+      return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
+    }
+    if (_nearbyShops.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: stores.length,
+      itemCount: _nearbyShops.length,
       itemBuilder: (context, index) {
-        final store = stores[index];
+        final shop = _nearbyShops[index];
     return Container(
           margin: EdgeInsets.only(bottom: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
           padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
@@ -765,7 +1022,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      store['name'] as String,
+                    shop.name,
                       style: TextStyle(
                         fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
                         fontWeight: FontWeight.bold,
@@ -774,7 +1031,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     SizedBox(height: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
                     Text(
-                      store['category'] as String,
+                    shop.category,
                       style: TextStyle(
                         fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
                         color: const Color(0xFF6B7280),
@@ -790,7 +1047,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
                         Text(
-                              store['distance'] as String,
+                        shop.formattedDistance,
                               style: TextStyle(
                             fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
                             color: const Color(0xFF6B7280),
@@ -804,7 +1061,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
                         Text(
-                          store['rating'].toString(),
+                        shop.rating.toStringAsFixed(1),
                             style: TextStyle(
                             fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
                             color: const Color(0xFF6B7280),
@@ -894,18 +1151,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentSearchesList(bool isSmallScreen, bool isTablet, bool isLargeTablet) {
-    final searches = [
-      'iPhone 15 Pro',
-      'Nike Air Max',
-      'Organic Vegetables',
-      'Gaming Laptop',
-      'Yoga Mat',
-    ];
-    
+    if (_recentSearches.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: searches.length,
+      itemCount: _recentSearches.length,
       itemBuilder: (context, index) {
     return Container(
           margin: EdgeInsets.only(bottom: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
@@ -928,7 +1180,7 @@ class _HomeScreenState extends State<HomeScreen> {
               SizedBox(width: isLargeTablet ? 12 : (isTablet ? 8 : 6)),
               Expanded(
             child: Text(
-                  searches[index],
+                  _recentSearches[index],
               style: TextStyle(
                     fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
                     color: const Color(0xFF374151),
@@ -948,28 +1200,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAIRecommendationsList(bool isSmallScreen, bool isTablet, bool isLargeTablet) {
-    final recommendations = [
-      {'title': 'Based on your location', 'subtitle': 'TechMart - 50% off laptops', 'color': Colors.blue},
-      {'title': 'Trending in your area', 'subtitle': 'Fashion Hub - New arrivals', 'color': Colors.pink},
-      {'title': 'Personalized for you', 'subtitle': 'Fresh Market - Organic deals', 'color': Colors.green},
-    ];
-    
+    if (_nearbyShops.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    // Simple heuristic: top 3 by rating from nearby
+    final List<Shop> top = List<Shop>.from(_nearbyShops)..sort((a, b) => b.rating.compareTo(a.rating));
+    final recs = top.take(3).toList();
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: recommendations.length,
+      itemCount: recs.length,
       itemBuilder: (context, index) {
-        final rec = recommendations[index];
+        final Shop shop = recs[index];
     return Container(
           margin: EdgeInsets.only(bottom: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
           padding: EdgeInsets.all(isLargeTablet ? 16 : (isTablet ? 12 : 8)),
       decoration: BoxDecoration(
         color: Colors.white,
             borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
-            border: Border.all(
-              color: (rec['color'] as Color).withValues(alpha: 0.2),
-              width: 1,
-            ),
+            border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
@@ -984,12 +1233,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: isLargeTablet ? 40 : (isTablet ? 36 : 32),
                 height: isLargeTablet ? 40 : (isTablet ? 36 : 32),
             decoration: BoxDecoration(
-                  color: (rec['color'] as Color).withValues(alpha: 0.1),
+                  color: const Color(0xFF2DD4BF).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(isLargeTablet ? 8 : (isTablet ? 6 : 4)),
             ),
             child: Icon(
                   Icons.psychology,
-                  color: rec['color'] as Color,
+                  color: const Color(0xFF2DD4BF),
                   size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
                 ),
               ),
@@ -999,7 +1248,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                      rec['title'] as String,
+                      'Recommended nearby',
                   style: TextStyle(
                         fontSize: isLargeTablet ? 16 : (isTablet ? 14 : 12),
                         fontWeight: FontWeight.w600,
@@ -1008,7 +1257,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     SizedBox(height: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
                 Text(
-                      rec['subtitle'] as String,
+                      '${shop.name} • ${shop.category} • ${shop.rating.toStringAsFixed(1)} ★',
                   style: TextStyle(
                         fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
                         color: const Color(0xFF6B7280),
@@ -1027,5 +1276,12 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _offersSubscription?.cancel();
+    FeaturedOffersService().dispose();
+    super.dispose();
   }
 } 

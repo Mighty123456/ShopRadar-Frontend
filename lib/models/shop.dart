@@ -88,6 +88,9 @@ class Shop {
   }
 
   String get formattedDistance {
+    if (distance == 0.0) {
+      return 'Distance N/A';
+    }
     if (distance < 1) {
       return '${(distance * 1000).round()}m';
     } else {

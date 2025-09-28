@@ -1,9 +1,57 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'api_service.dart';
 import '../models/shop.dart';
+import '../models/product_result.dart';
+// Removed unused import
 
 class SearchService {
+  static Future<({List<ProductResult> products, List<Shop> shops})> searchMixed({
+    required String query,
+    double? userLatitude,
+    double? userLongitude,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return (products: <ProductResult>[], shops: <Shop>[]);
+
+    final results = await Future.wait([
+      _searchProductsRaw(trimmed),
+      searchShops(trimmed),
+    ]);
+
+    final List<Map<String, dynamic>> rawProducts = (results[0] as List).cast<Map<String, dynamic>>();
+    final List<Shop> shops = results[1] as List<Shop>;
+
+    final List<ProductResult> products = rawProducts.map((p) {
+      final Map<String, dynamic>? shop = p['shop'] as Map<String, dynamic>?;
+      final List<dynamic> coords = (shop?['location']?['coordinates'] as List<dynamic>?) ?? const [];
+      final double lat = coords.length >= 2 ? (coords[1] as num).toDouble() : 0.0;
+      final double lon = coords.length >= 2 ? (coords[0] as num).toDouble() : 0.0;
+      double distanceKm = 0.0;
+      if (userLatitude != null && userLongitude != null && lat != 0.0 && lon != 0.0) {
+        distanceKm = _haversineKm(userLatitude, userLongitude, lat, lon);
+      }
+      return ProductResult(
+        id: (p['id'] ?? '').toString(),
+        name: (p['name'] ?? '').toString(),
+        description: (p['description'] ?? '').toString(),
+        imageUrl: (p['image'] ?? p['imageUrl'])?.toString(),
+        price: (p['price'] as num?)?.toDouble() ?? 0.0,
+        bestOfferPercent: (p['bestOfferPercent'] as num?)?.toInt() ?? 0,
+        shopId: (shop?['id'] ?? '').toString(),
+        shopName: (shop?['name'] ?? shop?['shopName'] ?? '').toString(),
+        shopAddress: (shop?['address'] ?? '').toString(),
+        shopLatitude: lat,
+        shopLongitude: lon,
+        shopRating: (shop?['rating'] as num?)?.toDouble() ?? 0.0,
+        distanceKm: distanceKm,
+      );
+    }).toList();
+
+    return (products: products, shops: shops);
+  }
+
   static Future<List<Shop>> searchShops(String query) async {
     final trimmed = query.trim();
     // Use correct backend route and parameter name
@@ -82,6 +130,7 @@ class SearchService {
     if (query.isEmpty || shops.isEmpty) return;
 
     final terms = _tokenize(query);
+    final expandedTerms = _expandQueryTerms(terms);
     if (terms.isEmpty) return;
 
     // Build a tiny corpus over the returned set only
@@ -105,14 +154,48 @@ class SearchService {
       final int dl = doc.length;
       double score = 0.0;
       for (final q in qTerms) {
-        final int f = doc.where((t) => t == q).length;
-        if (f == 0) continue;
-        final int n = df[q] ?? 0;
+        // Query expansion: include synonyms of q
+        final List<String> variants = [q, ..._synonyms[q] ?? const <String>[]];
+        // Exact term frequency across any variant
+        int exactF = 0;
+        for (final v in variants) {
+          exactF += doc.where((t) => t == v).length;
+        }
+
+        double effectiveF;
+        if (exactF > 0) {
+          effectiveF = exactF.toDouble();
+        } else {
+          // Fuzzy fallback: take best similarity to any token, thresholded
+          double best = 0.0;
+          for (final token in doc) {
+            for (final v in variants) {
+              final sim = _similarity(token, v);
+              if (sim > best) best = sim;
+              if (best >= 0.92) break; // early exit on very close match
+            }
+            if (best >= 0.92) break;
+          }
+          // Treat near match as fractional term frequency
+          effectiveF = best >= 0.8 ? (best * 0.9) : 0.0;
+        }
+
+        if (effectiveF == 0) continue;
+
+        // Use document frequency based on the base term if available, otherwise a small df to avoid zero idf
+        final int n = df[q] ?? (df[variants.first] ?? 1);
         final double idf = (n == 0)
             ? 0.0
-            : ( ( (N - n + 0.5) / (n + 0.5) ).abs() > 0 ? _ln((N - n + 0.5) / (n + 0.5)) : 0.0 );
-        final double denom = f + k1 * (1 - b + b * (dl / (avgdl == 0 ? 1 : avgdl)));
-        score += idf * ((f * (k1 + 1)) / (denom == 0 ? 1 : denom));
+            : (((N - n + 0.5) / (n + 0.5)).abs() > 0 ? _ln((N - n + 0.5) / (n + 0.5)) : 0.0);
+        final double denom = effectiveF + k1 * (1 - b + b * (dl / (avgdl == 0 ? 1 : avgdl)));
+        score += idf * (((effectiveF) * (k1 + 1)) / (denom == 0 ? 1 : denom));
+      }
+
+      // Phrase proximity boost: if concatenated doc contains the raw query phrase
+      final String docText = doc.join(' ');
+      final String qPhrase = qTerms.join(' ');
+      if (qPhrase.isNotEmpty && docText.contains(qPhrase)) {
+        score += 0.3;
       }
       return score;
     }
@@ -127,7 +210,7 @@ class SearchService {
 
     final List<_ScoredShop> scored = [];
     for (int i = 0; i < shops.length; i++) {
-      final base = bm25Score(docs[i], terms);
+      final base = bm25Score(docs[i], expandedTerms);
       final boosted = base + businessBoost(shops[i]);
       scored.add(_ScoredShop(shops[i], boosted));
     }
@@ -143,12 +226,100 @@ class SearchService {
     final normalized = lower.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
     final parts = normalized.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
     // very light stemming: remove plural 's'
-    return parts.map((t) => t.endsWith('s') && t.length > 3 ? t.substring(0, t.length - 1) : t).toList();
+    final stemmed = parts.map((t) => t.endsWith('s') && t.length > 3 ? t.substring(0, t.length - 1) : t);
+    // stopword removal and short token filter
+    return stemmed.where((t) => !_stopwords.contains(t) && t.length >= 2).toList();
   }
 
   static double _ln(double x) {
     return MathHelper.ln(x);
   }
+
+  // --- NLP helpers ---
+  static final Set<String> _stopwords = {
+    'the','a','an','and','or','of','to','in','on','for','with','at','by','from','is','are','be','it','this','that','near','me'
+  };
+
+  static final Map<String, List<String>> _synonyms = {
+    'phone': ['smartphone','mobile','cellphone'],
+    'cellphone': ['phone','mobile','smartphone'],
+    'sneaker': ['shoe','trainer'],
+    'sneakers': ['shoes','trainers','sneaker'],
+    'tv': ['television','smarttv'],
+    'laptop': ['notebook','ultrabook'],
+    'groceri': ['grocery','organic','food'],
+    'coffee': ['cafe','espresso','latte'],
+    'discount': ['offer','deal','sale'],
+  };
+
+  static List<String> _expandQueryTerms(List<String> terms) {
+    final Set<String> expanded = {...terms};
+    for (final t in terms) {
+      final List<String>? syns = _synonyms[t];
+      if (syns != null) {
+        for (final s in syns) {
+          expanded.add(s);
+        }
+      }
+    }
+    return expanded.toList();
+  }
+
+  static double _similarity(String a, String b) {
+    if (a == b) return 1.0;
+    if (a.isEmpty || b.isEmpty) return 0.0;
+    final int dist = _levenshtein(a, b);
+    final int maxLen = a.length > b.length ? a.length : b.length;
+    return 1.0 - (dist / (maxLen == 0 ? 1 : maxLen));
+  }
+
+  static int _levenshtein(String s, String t) {
+    final int n = s.length;
+    final int m = t.length;
+    if (n == 0) return m;
+    if (m == 0) return n;
+    final List<int> prev = List<int>.generate(m + 1, (j) => j);
+    final List<int> curr = List<int>.filled(m + 1, 0);
+    for (int i = 1; i <= n; i++) {
+      curr[0] = i;
+      final int siCode = s.codeUnitAt(i - 1);
+      for (int j = 1; j <= m; j++) {
+        final int cost = (siCode == t.codeUnitAt(j - 1)) ? 0 : 1;
+        curr[j] = math.min(
+          math.min(curr[j - 1] + 1, prev[j] + 1),
+          prev[j - 1] + cost,
+        );
+      }
+      for (int j = 0; j <= m; j++) {
+        prev[j] = curr[j];
+      }
+    }
+    return prev[m];
+  }
+
+  static Future<List<Map<String, dynamic>>> _searchProductsRaw(String query) async {
+    final uri = '/api/products/search?q=${Uri.encodeQueryComponent(query)}&limit=30';
+    final http.Response response = await ApiService.get(uri);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return const [];
+    }
+    final Map<String, dynamic> jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
+    final List<dynamic> items = (jsonBody['data'] as List<dynamic>?) ?? <dynamic>[];
+    return items.cast<Map<String, dynamic>>();
+  }
+
+  static double _haversineKm(double lat1, double lon1, double lat2, double lon2) {
+    const double R = 6371000.0; // Earth's radius in meters
+    final double dLat = _deg2rad(lat2 - lat1);
+    final double dLon = _deg2rad(lon2 - lon1);
+    final double a = (math.sin(dLat / 2) * math.sin(dLat / 2)) +
+        math.cos(_deg2rad(lat1)) * math.cos(_deg2rad(lat2)) *
+            (math.sin(dLon / 2) * math.sin(dLon / 2));
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return (R * c) / 1000.0; // Convert meters to kilometers
+  }
+
+  static double _deg2rad(double deg) => deg * (3.141592653589793 / 180.0);
 }
 
 class _ScoredShop {
@@ -163,19 +334,10 @@ class MathHelper {
   }
 
   static double _log(double x) {
-    // Use natural log via change-of-base from Dart's log in dart:math, but avoid importing to keep snippet simple.
-    // If dart:math is available, replace with: return math.log(x);
-    // Fallback simple approximation using series around 1 (sufficient here): ln(x) ~ 2 * sum((y^(2n-1))/(2n-1)), y=(x-1)/(x+1)
-    final double y = (x - 1) / (x + 1);
-    double y2 = y * y;
-    double term = y;
-    double sum = term;
-    for (int n = 2; n < 15; n++) {
-      term *= y2;
-      sum += term / (2 * n - 1);
-    }
-    return 2 * sum;
+    return math.log(x);
   }
 }
+
+// Removed unused MathTrig and _MathProxy helpers
 
 

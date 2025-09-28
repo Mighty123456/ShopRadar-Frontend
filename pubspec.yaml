@@ -50,6 +50,9 @@ dependencies:
   webview_flutter: ^4.7.0
   permission_handler: ^12.0.1
   flutter_native_splash: ^2.3.8
+  url_launcher: ^6.3.0
+  connectivity_plus: ^6.0.5
+  web_socket_channel: ^3.0.0
 
 dev_dependencies:
   # The "flutter_lints" package below contains a set of recommended lints to

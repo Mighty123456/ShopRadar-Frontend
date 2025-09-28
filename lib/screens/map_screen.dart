@@ -7,6 +7,7 @@ import '../models/shop.dart';
 import '../widgets/shop_info_window.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/search_overlay.dart';
+import 'map_screen_free.dart';
 
 class MapScreen extends StatefulWidget {
   final String? searchQuery;
@@ -288,14 +289,11 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _onDirectionsPressed(Shop shop) {
-    // Open Google Maps for directions
-    // This would typically use url_launcher to open external maps app
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening directions to ${shop.name}'),
-        action: SnackBarAction(
-          label: 'OK',
-          onPressed: () {},
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MapScreenFree(
+          shopsOverride: [shop],
+          routeToShop: shop,
         ),
       ),
     );

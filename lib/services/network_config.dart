@@ -12,10 +12,25 @@ class NetworkConfig {
   static Map<String, String> baseUrls = {
     // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
     emulator: 'http://10.0.2.2:3000',
-    // Use hosted API on physical devices so it works off your LAN
+    // Use localhost for physical devices temporarily while Render.com is down
     physicalDevice: 'https://shopradarbackend.onrender.com',
     // Use localhost for simulator (iOS simulator can access localhost directly)
     simulator: 'http://localhost:3000',
+  };
+
+  // Fallback URLs for when the primary hosted service is down
+  static List<String> fallbackUrls = [
+    'http://localhost:3000',  // Local development fallback
+    'http://10.0.2.2:3000',  // Emulator fallback
+  ];
+
+  static Map<String, String> webSocketUrls = {
+    // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
+    emulator: 'ws://10.0.2.2:3000',
+    // Use hosted API on physical devices so it works off your LAN
+    physicalDevice: 'wss://shopradarbackend.onrender.com',
+    // Use localhost for simulator (iOS simulator can access localhost directly)
+    simulator: 'ws://localhost:3000',
   };
   
   static const List<String> networkPatterns = [
@@ -103,11 +118,12 @@ class NetworkConfig {
         baseUrls[emulator]!, // localhost:3000 for emulator
         baseUrls[simulator]!, // localhost:3000 for simulator
         baseUrls[physicalDevice]!, // hosted URL for physical device
+        ...fallbackUrls, // Add fallback URLs for better reliability
       ];
 
       final futures = candidates.map((baseUrl) => 
         _testConnection(baseUrl).timeout(
-          const Duration(seconds: 3),
+          Duration(seconds: baseUrl.startsWith('https://') ? 60 : 3),
           onTimeout: () => false,
         ).then((isWorking) => isWorking ? baseUrl : null)
       );
@@ -163,7 +179,7 @@ class NetworkConfig {
         if (pattern == 'localhost' || pattern == '10.0.2.2') {
           final url = 'http://$pattern:$port';
           if (await _testConnection(url).timeout(
-            const Duration(seconds: 4),
+            Duration(seconds: url.startsWith('https://') ? 60 : 4),
             onTimeout: () => false,
           )) {
             _workingBaseUrl = url;
@@ -178,7 +194,7 @@ class NetworkConfig {
           final url = 'http://$ip:$port';
           
           if (await _testConnection(url).timeout(
-            const Duration(seconds: 4),
+            Duration(seconds: url.startsWith('https://') ? 60 : 4),
             onTimeout: () => false,
           )) {
             _workingBaseUrl = url;
@@ -211,21 +227,31 @@ class NetworkConfig {
   }
   
   static Future<bool> _testConnection(String url) async {
-    try {
-      debugPrint('🔍 Testing connection to: $url');
-      // Render can cold-start; allow longer timeout for https hosts
-      final isHosted = url.startsWith('https://');
-      final response = await http.get(Uri.parse('$url/health'))
-          .timeout(Duration(seconds: isHosted ? 12 : 5));
-      
-      if (response.statusCode == 200) {
-        debugPrint('✅ Connection successful to: $url');
-        return true;
-      } else {
-        debugPrint('❌ Connection failed to: $url - Status: ${response.statusCode}');
+    return await _testConnectionWithRetry(url, maxRetries: 2);
+  }
+
+  static Future<bool> _testConnectionWithRetry(String url, {int maxRetries = 2}) async {
+    for (int attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        debugPrint('🔍 Testing connection to: $url (attempt ${attempt + 1}/${maxRetries + 1})');
+        // Render can cold-start; allow longer timeout for https hosts
+        final isHosted = url.startsWith('https://');
+        final response = await http.get(Uri.parse('$url/health'))
+            .timeout(Duration(seconds: isHosted ? 60 : 5));
+        
+        if (response.statusCode == 200) {
+          debugPrint('✅ Connection successful to: $url');
+          return true;
+        } else {
+          debugPrint('❌ Connection failed to: $url - Status: ${response.statusCode}');
+        }
+      } catch (e) {
+        debugPrint('❌ Connection error to: $url - $e');
+        if (attempt < maxRetries) {
+          debugPrint('🔄 Retrying connection to: $url in 2 seconds...');
+          await Future.delayed(const Duration(seconds: 2));
+        }
       }
-    } catch (e) {
-      debugPrint('❌ Connection error to: $url - $e');
     }
     return false;
   }
@@ -258,6 +284,15 @@ class NetworkConfig {
     final url = _getFallbackUrl();
     debugPrint('🌐 Using fallback base URL: $url');
     return url;
+  }
+
+  static String get webSocketUrl {
+    final baseUrl = NetworkConfig.baseUrl;
+    if (baseUrl.startsWith('https://')) {
+      return baseUrl.replaceFirst('https://', 'wss://');
+    } else {
+      return baseUrl.replaceFirst('http://', 'ws://');
+    }
   }
   
   static Future<void> refreshNetworkConfig() async {
@@ -394,6 +429,9 @@ class NetworkConfig {
       '10. Check CORS settings in backend/app.js',
       '11. Use NetworkConfig.getNextWorkingUrl() for failover',
       '12. Check discovered IPs: ${_discoveredIPs.join(", ")}',
+      '13. Render.com service may be cold-starting (wait 60+ seconds)',
+      '14. Try local development server as fallback',
+      '15. Check Render.com service status and logs',
     ];
   }
   
@@ -419,7 +457,7 @@ class NetworkConfig {
     try {
       final isHosted = baseUrl.startsWith('https://');
       final response = await http.get(Uri.parse('$baseUrl/health'))
-          .timeout(Duration(seconds: isHosted ? 20 : 10));
+          .timeout(Duration(seconds: isHosted ? 60 : 10));
       return response.statusCode == 200;
     } catch (e) {
       return false;
