@@ -623,6 +623,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
+
         ],
       ),
       child: Column(

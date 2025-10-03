@@ -23,16 +23,18 @@ import 'widgets/auth_wrapper.dart';
 import 'widgets/splash_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/search_results_screen.dart';
+import 'services/realtime_service.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-  // Force hosted backend on physical devices and don't block startup
+  // Use physical device environment and set the hosted backend URL explicitly
   NetworkConfig.setEnvironment(NetworkConfig.physicalDevice);
+  NetworkConfig.setPhysicalDeviceBaseUrl('https://shopradarbackend-ob4u.onrender.com');
   runApp(const ShopRadarApp());
-  // Fire-and-forget network initialization
+  // Fire-and-forget network initialization and refresh to clear any cached URLs from hot reload
   // ignore: unawaited_futures
-  NetworkConfig.initialize();
+  NetworkConfig.refreshNetworkConfig();
 }
 
 class ShopRadarApp extends StatefulWidget {
@@ -70,6 +72,10 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
       // Remove native splash screen
       FlutterNativeSplash.remove();
       
+      // Initialize realtime service in background
+      // ignore: unawaited_futures
+      RealtimeService().initialize();
+
       // Show splash screen before onboarding for 2 more seconds
       await Future.delayed(const Duration(seconds: 2));
       

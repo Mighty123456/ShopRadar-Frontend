@@ -37,12 +37,6 @@ class _OfferFilterWidgetState extends State<OfferFilterWidget> {
     'Other',
   ];
 
-  final List<String> _sortOptions = [
-    'discount',
-    'expiring',
-    'newest',
-    'alphabetical',
-  ];
 
   @override
   void initState() {
@@ -88,7 +82,7 @@ class _OfferFilterWidgetState extends State<OfferFilterWidget> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -148,7 +142,7 @@ class _OfferFilterWidgetState extends State<OfferFilterWidget> {
                     _selectedCategory = category;
                   });
                 },
-                selectedColor: Colors.blue.withOpacity(0.2),
+                selectedColor: Colors.blue.withValues(alpha: 0.2),
                 checkmarkColor: Colors.blue,
               );
             }).toList(),

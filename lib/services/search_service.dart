@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'api_service.dart';
 import '../models/shop.dart';
 import '../models/product_result.dart';
+import 'product_search_service.dart';
 // Removed unused import
 
 class SearchService {
@@ -15,13 +17,61 @@ class SearchService {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return (products: <ProductResult>[], shops: <Shop>[]);
 
-    final results = await Future.wait([
-      _searchProductsRaw(trimmed),
-      searchShops(trimmed),
-    ]);
+    // Try enhanced search first (includes all shops with offers)
+    try {
+      final result = await ProductSearchService.searchProductsWithShopsAndOffers(
+        query: trimmed,
+        userLatitude: userLatitude,
+        userLongitude: userLongitude,
+      );
+      
+      if (result['success'] == true) {
+        final List<ProductResult> products = List<ProductResult>.from(result['products'] ?? []);
+        final List<Shop> shops = List<Shop>.from(result['shops'] ?? []);
+        
+        debugPrint('Enhanced search found ${products.length} products and ${shops.length} shops with offers');
+        
+        // Calculate distances for shops if user location is available
+        if (userLatitude != null && userLongitude != null) {
+          final List<Shop> shopsWithDistance = shops.map((shop) {
+            if (shop.latitude != 0.0 && shop.longitude != 0.0) {
+              final distance = _haversineKm(userLatitude, userLongitude, shop.latitude, shop.longitude);
+              return Shop(
+                id: shop.id,
+                name: shop.name,
+                category: shop.category,
+                address: shop.address,
+                latitude: shop.latitude,
+                longitude: shop.longitude,
+                rating: shop.rating,
+                reviewCount: shop.reviewCount,
+                distance: distance,
+                offers: shop.offers,
+                isOpen: shop.isOpen,
+                openingHours: shop.openingHours,
+                phone: shop.phone,
+                imageUrl: shop.imageUrl,
+                description: shop.description,
+                amenities: shop.amenities,
+                lastUpdated: shop.lastUpdated,
+              );
+            }
+            return shop;
+          }).toList();
+          
+          return (products: products, shops: shopsWithDistance);
+        }
+        
+        return (products: products, shops: shops);
+      } else {
+        debugPrint('Enhanced search failed: ${result['message']}, falling back to original search');
+      }
+    } catch (e) {
+      debugPrint('Enhanced search error: $e, falling back to original search');
+    }
 
-    final List<Map<String, dynamic>> rawProducts = (results[0] as List).cast<Map<String, dynamic>>();
-    final List<Shop> shops = results[1] as List<Shop>;
+    // Fallback to original search
+    final List<Map<String, dynamic>> rawProducts = await _searchProductsRaw(trimmed);
 
     final List<ProductResult> products = rawProducts.map((p) {
       final Map<String, dynamic>? shop = p['shop'] as Map<String, dynamic>?;
@@ -49,7 +99,76 @@ class SearchService {
       );
     }).toList();
 
-    return (products: products, shops: shops);
+    // If product hits exist, aggregate shops from product results so each shop appears once
+    // with the best offer/lowest price. This ensures multiple shops with offers are shown.
+    if (products.isNotEmpty) {
+      final Map<String, _ShopAggFromProducts> byShop = {};
+      for (final p in products) {
+        if (p.shopId.isEmpty) continue;
+        final agg = byShop[p.shopId] ?? _ShopAggFromProducts(
+          id: p.shopId,
+          name: p.shopName,
+          address: p.shopAddress,
+          latitude: p.shopLatitude,
+          longitude: p.shopLongitude,
+          rating: p.shopRating,
+          distanceKm: p.distanceKm,
+          bestOfferPercent: p.bestOfferPercent,
+          bestPrice: p.price,
+        );
+        if (p.bestOfferPercent > agg.bestOfferPercent) agg.bestOfferPercent = p.bestOfferPercent;
+        if (p.price > 0 && (agg.bestPrice == 0 || p.price < agg.bestPrice)) agg.bestPrice = p.price;
+        // If distance not computed earlier, keep the first non-zero
+        if (agg.distanceKm == 0 && p.distanceKm > 0) agg.distanceKm = p.distanceKm;
+        byShop[p.shopId] = agg;
+      }
+
+      final List<Shop> shops = byShop.values.map((a) {
+        final offers = a.bestOfferPercent > 0
+            ? [ShopOffer(
+                id: 'best',
+                title: '${a.bestOfferPercent}% OFF',
+                description: 'Best current discount',
+                discount: a.bestOfferPercent.toDouble(),
+                validUntil: DateTime.now().add(const Duration(days: 7)),
+              )]
+            : const <ShopOffer>[];
+        return Shop(
+          id: a.id,
+          name: a.name,
+          category: '',
+          address: a.address,
+          latitude: a.latitude,
+          longitude: a.longitude,
+          rating: a.rating,
+          reviewCount: 0,
+          distance: a.distanceKm,
+          offers: offers,
+          isOpen: true,
+          openingHours: '',
+          phone: '',
+          imageUrl: null,
+          description: null,
+          amenities: const [],
+          lastUpdated: null,
+        );
+      }).toList();
+
+      // Rank by discount, rating, and proximity (if available)
+      shops.sort((a, b) {
+        double aDiscount = a.offers.isNotEmpty ? a.offers.first.discount : 0.0;
+        double bDiscount = b.offers.isNotEmpty ? b.offers.first.discount : 0.0;
+        final double aScore = (0.5 * (a.rating / 5.0)) + (0.3 * (aDiscount / 100.0)) + (0.2 * (-a.distance));
+        final double bScore = (0.5 * (b.rating / 5.0)) + (0.3 * (bDiscount / 100.0)) + (0.2 * (-b.distance));
+        return bScore.compareTo(aScore);
+      });
+
+      return (products: products, shops: shops);
+    }
+
+    // Fallback when no product hits: generic shop search
+    final List<Shop> fallbackShops = await searchShops(trimmed);
+    return (products: products, shops: fallbackShops);
   }
 
   static Future<List<Shop>> searchShops(String query) async {
@@ -89,6 +208,38 @@ class SearchService {
                 ? ((item['location']['coordinates'][0] as num).toDouble())
                 : 0.0;
 
+        // Parse offers from backend response
+        final List<ShopOffer> offers = [];
+        if (item['offers'] is List) {
+          debugPrint('Found ${(item['offers'] as List).length} offers for shop ${item['shopName']}');
+          for (final offerData in item['offers'] as List) {
+            if (offerData is Map<String, dynamic>) {
+              final discountValue = (offerData['discountValue'] as num?)?.toDouble() ?? 0.0;
+              final discountType = offerData['discountType']?.toString() ?? 'Percentage';
+              
+              // Convert to percentage if it's a fixed amount (this is a simplified conversion)
+              double discountPercent = discountValue;
+              if (discountType == 'Fixed Amount') {
+                // For fixed amount, we'll use the raw value as percentage
+                // In a real implementation, you'd need the product price to calculate percentage
+                discountPercent = discountValue;
+              }
+              
+              offers.add(ShopOffer(
+                id: (offerData['id'] ?? '').toString(),
+                title: (offerData['title'] ?? '').toString(),
+                description: (offerData['description'] ?? '').toString(),
+                discount: discountPercent,
+                validUntil: offerData['endDate'] != null 
+                    ? DateTime.parse(offerData['endDate'].toString())
+                    : DateTime.now().add(const Duration(days: 7)),
+              ));
+            }
+          }
+        } else {
+          debugPrint('No offers found for shop ${item['shopName']}');
+        }
+
         return Shop(
           id: (item['_id'] ?? item['id'] ?? '').toString(),
           name: (item['shopName'] ?? item['name'] ?? '').toString(),
@@ -99,7 +250,7 @@ class SearchService {
           rating: (item['rating'] as num?)?.toDouble() ?? 0.0,
           reviewCount: (item['reviewCount'] as int?) ?? (item['reviewsCount'] as int?) ?? 0,
           distance: (item['distanceKm'] as num?)?.toDouble() ?? (item['distance'] as num?)?.toDouble() ?? 0.0,
-          offers: const [],
+          offers: offers,
           isOpen: item['isLive'] == true || item['isOpen'] == true,
           openingHours: (item['openingHours'] ?? '').toString(),
           phone: (item['phone'] ?? '').toString(),
@@ -326,6 +477,30 @@ class _ScoredShop {
   final Shop shop;
   final double score;
   _ScoredShop(this.shop, this.score);
+}
+
+class _ShopAggFromProducts {
+  final String id;
+  final String name;
+  final String address;
+  final double latitude;
+  final double longitude;
+  final double rating;
+  double distanceKm;
+  int bestOfferPercent;
+  double bestPrice;
+
+  _ShopAggFromProducts({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.rating,
+    required this.distanceKm,
+    required this.bestOfferPercent,
+    required this.bestPrice,
+  });
 }
 
 class MathHelper {

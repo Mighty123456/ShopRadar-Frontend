@@ -42,7 +42,7 @@ class _DealAlertsScreenState extends State<DealAlertsScreen> {
 
   void _showError(String message) {
     if (mounted) {
-      AnimatedMessageDialog.show(
+      MessageHelper.showAnimatedMessage(
         context,
         title: 'Error',
         message: message,
@@ -53,7 +53,7 @@ class _DealAlertsScreenState extends State<DealAlertsScreen> {
 
   void _showSuccess(String message) {
     if (mounted) {
-      AnimatedMessageDialog.show(
+      MessageHelper.showAnimatedMessage(
         context,
         title: 'Success',
         message: message,
@@ -280,7 +280,7 @@ class _DealAlertsScreenState extends State<DealAlertsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -422,7 +422,7 @@ class _CreateDealAlertScreenState extends State<CreateDealAlertScreen> {
 
             // Category
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               decoration: const InputDecoration(
                 labelText: 'Category',
                 border: OutlineInputBorder(),

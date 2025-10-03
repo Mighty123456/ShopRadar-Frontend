@@ -149,6 +149,38 @@ class _MapScreenState extends State<MapScreen> {
           if (_currentLocation != null) {
             distanceKm = _distanceMeters(_currentLocation!, LatLng(latitude, longitude)) / 1000.0;
           }
+          // Parse offers from backend response
+          final List<ShopOffer> offers = [];
+          if (shop['offers'] is List) {
+            debugPrint('Found ${(shop['offers'] as List).length} offers for shop ${shop['shopName']}');
+            for (final offerData in shop['offers'] as List) {
+              if (offerData is Map<String, dynamic>) {
+                final discountValue = (offerData['discountValue'] as num?)?.toDouble() ?? 0.0;
+                final discountType = offerData['discountType']?.toString() ?? 'Percentage';
+                
+                // Convert to percentage if it's a fixed amount (this is a simplified conversion)
+                double discountPercent = discountValue;
+                if (discountType == 'Fixed Amount') {
+                  // For fixed amount, we'll use the raw value as percentage
+                  // In a real implementation, you'd need the product price to calculate percentage
+                  discountPercent = discountValue;
+                }
+                
+                offers.add(ShopOffer(
+                  id: (offerData['id'] ?? '').toString(),
+                  title: (offerData['title'] ?? '').toString(),
+                  description: (offerData['description'] ?? '').toString(),
+                  discount: discountPercent,
+                  validUntil: offerData['endDate'] != null 
+                      ? DateTime.parse(offerData['endDate'].toString())
+                      : DateTime.now().add(const Duration(days: 7)),
+                ));
+              }
+            }
+          } else {
+            debugPrint('No offers found for shop ${shop['shopName']}');
+          }
+
           return Shop(
             id: (shop['_id'] ?? shop['id'] ?? '').toString(),
             name: (shop['shopName'] ?? shop['name'] ?? '').toString(),
@@ -159,7 +191,7 @@ class _MapScreenState extends State<MapScreen> {
             rating: (shop['rating'] as num?)?.toDouble() ?? 0.0,
             reviewCount: (shop['reviewCount'] as int?) ?? 0,
             distance: distanceKm,
-            offers: const [],
+            offers: offers,
             isOpen: shop['isLive'] == true,
             openingHours: '',
             phone: (shop['phone'] ?? '').toString(),

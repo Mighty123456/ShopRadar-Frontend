@@ -726,15 +726,6 @@ class _SignUpFormState extends State<_SignUpForm> {
             : null,
         gpsAddress: selectedRole == 'shop' ? _gpsAddress : null,
         isLocationVerified: selectedRole == 'shop' ? _isLocationVerified : null,
-      ).timeout(
-        const Duration(seconds: 35),
-        onTimeout: () {
-          return {
-            'success': false,
-            'message': 'Request timed out. Please check your connection and try again.',
-            'timeoutError': true,
-          };
-        },
       );
 
       if (!mounted) return;
@@ -742,9 +733,12 @@ class _SignUpFormState extends State<_SignUpForm> {
       final navigator = Navigator.of(context);
       
       if (result['success']) {
+        final bool emailSendFailed = result['emailSendFailed'] == true;
         MessageHelper.showAnimatedMessage(
           context,
-          message: 'Registration successful! Please check your email for OTP.',
+          message: emailSendFailed
+              ? 'Account created, but sending email took too long. Use Resend Code on next screen.'
+              : 'Registration successful! Please check your email for OTP.',
           type: MessageType.success,
           title: 'Account Created!',
         );

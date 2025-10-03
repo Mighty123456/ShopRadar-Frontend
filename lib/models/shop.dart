@@ -51,7 +51,7 @@ class Shop {
       offers: (json['offers'] as List<dynamic>?)
           ?.map((offer) => ShopOffer.fromJson(offer))
           .toList() ?? [],
-      isOpen: json['isOpen'] ?? false,
+      isOpen: (json['isOpen'] ?? json['isLive'] ?? false) as bool,
       openingHours: json['openingHours'] ?? '',
       phone: json['phone'] ?? '',
       imageUrl: json['imageUrl'],

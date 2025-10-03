@@ -145,343 +145,356 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.8,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF2979FF),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _isEditing ? Icons.edit : Icons.add,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      _isEditing ? 'Edit Product' : 'Add New Product',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+        child: Stack(
+          children: [
+            Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.8,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2979FF),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
+                    child: Row(
                       children: [
-                        CustomTextField(
-                          controller: _productNameController,
-                          labelText: 'Product Name',
-                          hintText: 'e.g., Headphone, Rice Bag, Shirt',
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter product name';
-                            }
-                            return null;
-                          },
+                        Icon(
+                          _isEditing ? Icons.edit : Icons.add,
+                          color: Colors.white,
+                          size: 24,
                         ),
-                        const SizedBox(height: 16),
-                        
-                        Builder(
-                          builder: (context) {
-                            final screenWidth = MediaQuery.of(context).size.width;
-                            final isStack = screenWidth < 380;
-                            final brandField = Expanded(
-                              child: CustomTextField(
-                                controller: _brandController,
-                                labelText: 'Brand',
-                                hintText: 'e.g., Sony, Boat, Samsung',
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter brand';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            );
-                            final modelField = Expanded(
-                              child: CustomTextField(
-                                controller: _modelController,
-                                labelText: 'Model / Variant',
-                                hintText: 'e.g., Boat T800, iPhone 15 Pro',
-                              ),
-                            );
-                            final children = <Widget>[
-                              brandField,
-                              isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
-                              modelField,
-                            ];
-                            return isStack
-                                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
-                                : Row(children: children);
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        CustomTextField(
-                          controller: _descriptionController,
-                          labelText: 'Description',
-                          hintText: 'Short details (e.g., "Noise-cancelling wireless headphones, 30 hrs battery")',
-                          maxLines: 3,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter product description';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        CustomTextField(
-                          controller: _tagsController,
-                          labelText: 'Tags / Keywords',
-                          hintText: 'e.g., "wireless, headphones, bluetooth, Sony"',
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Category Selection
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Category',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _selectedCategory,
-                                  isExpanded: true,
-                                  hint: const Text('Select category'),
-                                  items: const [
-                                    DropdownMenuItem(value: 'Electronics', child: Text('Electronics')),
-                                    DropdownMenuItem(value: 'Clothing', child: Text('Clothing')),
-                                    DropdownMenuItem(value: 'Food & Beverages', child: Text('Food & Beverages')),
-                                    DropdownMenuItem(value: 'Home & Garden', child: Text('Home & Garden')),
-                                    DropdownMenuItem(value: 'Sports & Outdoors', child: Text('Sports & Outdoors')),
-                                    DropdownMenuItem(value: 'Beauty & Health', child: Text('Beauty & Health')),
-                                    DropdownMenuItem(value: 'Books & Media', child: Text('Books & Media')),
-                                    DropdownMenuItem(value: 'Automotive', child: Text('Automotive')),
-                                    DropdownMenuItem(value: 'Other', child: Text('Other')),
-                                  ],
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _selectedCategory = value!;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        Builder(
-                          builder: (context) {
-                            final screenWidth = MediaQuery.of(context).size.width;
-                            final isStack = screenWidth < 380;
-                            final priceField = Expanded(
-                              child: CustomTextField(
-                                controller: _priceController,
-                                labelText: 'Original Price (₹)',
-                                hintText: '0.00',
-                                keyboardType: TextInputType.number,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter price';
-                                  }
-                                  if (double.tryParse(value) == null) {
-                                    return 'Please enter valid price';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            );
-                            final stockField = Expanded(
-                              child: CustomTextField(
-                                controller: _stockController,
-                                labelText: 'Stock Quantity',
-                                hintText: 'e.g., 10, 50, 100',
-                                keyboardType: TextInputType.number,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter stock quantity';
-                                  }
-                                  if (int.tryParse(value) == null) {
-                                    return 'Please enter valid quantity';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            );
-                            final children = <Widget>[
-                              priceField,
-                              isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
-                              stockField,
-                            ];
-                            return isStack
-                                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
-                                : Row(children: children);
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Unit Type and Availability Status
-                        Builder(
-                          builder: (context) {
-                            final screenWidth = MediaQuery.of(context).size.width;
-                            final isStack = screenWidth < 380;
-                            final unitType = Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Unit Type',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: _selectedUnitType,
-                                        isExpanded: true,
-                                        hint: const Text('Select unit type'),
-                                        items: const [
-                                          DropdownMenuItem(value: 'Piece', child: Text('Piece')),
-                                          DropdownMenuItem(value: 'Kg', child: Text('Kg')),
-                                          DropdownMenuItem(value: 'Liter', child: Text('Liter')),
-                                          DropdownMenuItem(value: 'Pack', child: Text('Pack')),
-                                          DropdownMenuItem(value: 'Box', child: Text('Box')),
-                                          DropdownMenuItem(value: 'Set', child: Text('Set')),
-                                        ],
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _selectedUnitType = value!;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                            final availability = Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Availability Status',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: _selectedAvailabilityStatus,
-                                        isExpanded: true,
-                                        hint: const Text('Select status'),
-                                        items: const [
-                                          DropdownMenuItem(value: 'In Stock', child: Text('In Stock')),
-                                          DropdownMenuItem(value: 'Out of Stock', child: Text('Out of Stock')),
-                                        ],
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _selectedAvailabilityStatus = value!;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                            final children = <Widget>[
-                              unitType,
-                              isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
-                              availability,
-                            ];
-                            return isStack
-                                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
-                                : Row(children: children);
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text(
-                                  'Cancel',
-                                  style: TextStyle(fontSize: 16),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomButton(
-                                text: _isLoading 
-                                  ? 'Saving...' 
-                                  : (_isEditing ? 'Update Product' : 'Add Product'),
-                                onPressed: _isLoading ? null : _saveProduct,
-                              ),
-                            ),
-                          ],
+                        const SizedBox(width: 12),
+                        Text(
+                          _isEditing ? 'Edit Product' : 'Add New Product',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
                   ),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            CustomTextField(
+                              controller: _productNameController,
+                              labelText: 'Product Name',
+                              hintText: 'e.g., Headphone, Rice Bag, Shirt',
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter product name';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            Builder(
+                              builder: (context) {
+                                final screenWidth = MediaQuery.of(context).size.width;
+                                final isStack = screenWidth < 380;
+                                final brandField = Expanded(
+                                  child: CustomTextField(
+                                    controller: _brandController,
+                                    labelText: 'Brand',
+                                    hintText: 'e.g., Sony, Boat, Samsung',
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter brand';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                );
+                                final modelField = Expanded(
+                                  child: CustomTextField(
+                                    controller: _modelController,
+                                    labelText: 'Model / Variant',
+                                    hintText: 'e.g., Boat T800, iPhone 15 Pro',
+                                  ),
+                                );
+                                final children = <Widget>[
+                                  brandField,
+                                  isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                                  modelField,
+                                ];
+                                return isStack
+                                    ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                                    : Row(children: children);
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            CustomTextField(
+                              controller: _descriptionController,
+                              labelText: 'Description',
+                              hintText: 'Short details (e.g., "Noise-cancelling wireless headphones, 30 hrs battery")',
+                              maxLines: 3,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter product description';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            CustomTextField(
+                              controller: _tagsController,
+                              labelText: 'Tags / Keywords',
+                              hintText: 'e.g., "wireless, headphones, bluetooth, Sony"',
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Category Selection
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Category',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: _selectedCategory,
+                                      isExpanded: true,
+                                      hint: const Text('Select category'),
+                                      items: const [
+                                        DropdownMenuItem(value: 'Electronics', child: Text('Electronics')),
+                                        DropdownMenuItem(value: 'Clothing', child: Text('Clothing')),
+                                        DropdownMenuItem(value: 'Food & Beverages', child: Text('Food & Beverages')),
+                                        DropdownMenuItem(value: 'Home & Garden', child: Text('Home & Garden')),
+                                        DropdownMenuItem(value: 'Sports & Outdoors', child: Text('Sports & Outdoors')),
+                                        DropdownMenuItem(value: 'Beauty & Health', child: Text('Beauty & Health')),
+                                        DropdownMenuItem(value: 'Books & Media', child: Text('Books & Media')),
+                                        DropdownMenuItem(value: 'Automotive', child: Text('Automotive')),
+                                        DropdownMenuItem(value: 'Other', child: Text('Other')),
+                                      ],
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _selectedCategory = value!;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            Builder(
+                              builder: (context) {
+                                final screenWidth = MediaQuery.of(context).size.width;
+                                final isStack = screenWidth < 380;
+                                final priceField = Expanded(
+                                  child: CustomTextField(
+                                    controller: _priceController,
+                                    labelText: 'Original Price (₹)',
+                                    hintText: '0.00',
+                                    keyboardType: TextInputType.number,
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter price';
+                                      }
+                                      if (double.tryParse(value) == null) {
+                                        return 'Please enter valid price';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                );
+                                final stockField = Expanded(
+                                  child: CustomTextField(
+                                    controller: _stockController,
+                                    labelText: 'Stock Quantity',
+                                    hintText: 'e.g., 10, 50, 100',
+                                    keyboardType: TextInputType.number,
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter stock quantity';
+                                      }
+                                      if (int.tryParse(value) == null) {
+                                        return 'Please enter valid quantity';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                );
+                                final children = <Widget>[
+                                  priceField,
+                                  isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                                  stockField,
+                                ];
+                                return isStack
+                                    ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                                    : Row(children: children);
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Unit Type and Availability Status
+                            Builder(
+                              builder: (context) {
+                                final screenWidth = MediaQuery.of(context).size.width;
+                                final isStack = screenWidth < 380;
+                                final unitType = Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Unit Type',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: Colors.grey),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: DropdownButtonHideUnderline(
+                                          child: DropdownButton<String>(
+                                            value: _selectedUnitType,
+                                            isExpanded: true,
+                                            hint: const Text('Select unit type'),
+                                            items: const [
+                                              DropdownMenuItem(value: 'Piece', child: Text('Piece')),
+                                              DropdownMenuItem(value: 'Kg', child: Text('Kg')),
+                                              DropdownMenuItem(value: 'Liter', child: Text('Liter')),
+                                              DropdownMenuItem(value: 'Pack', child: Text('Pack')),
+                                              DropdownMenuItem(value: 'Box', child: Text('Box')),
+                                              DropdownMenuItem(value: 'Set', child: Text('Set')),
+                                            ],
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _selectedUnitType = value!;
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                final availability = Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Availability Status',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: Colors.grey),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: DropdownButtonHideUnderline(
+                                          child: DropdownButton<String>(
+                                            value: _selectedAvailabilityStatus,
+                                            isExpanded: true,
+                                            hint: const Text('Select status'),
+                                            items: const [
+                                              DropdownMenuItem(value: 'In Stock', child: Text('In Stock')),
+                                              DropdownMenuItem(value: 'Out of Stock', child: Text('Out of Stock')),
+                                            ],
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _selectedAvailabilityStatus = value!;
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                final children = <Widget>[
+                                  unitType,
+                                  isStack ? const SizedBox(height: 16) : const SizedBox(width: 16),
+                                  availability,
+                                ];
+                                return isStack
+                                    ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+                                    : Row(children: children);
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextButton(
+                                    onPressed: () => Navigator.of(context).pop(),
+                                    child: const Text(
+                                      'Cancel',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: CustomButton(
+                                    text: _isLoading 
+                                      ? 'Saving...' 
+                                      : (_isEditing ? 'Update Product' : 'Add Product'),
+                                    onPressed: _isLoading ? null : _saveProduct,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_isLoading)
+              Positioned.fill(
+                child: AbsorbPointer(
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -1091,17 +1104,25 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                   child: Row(
                     children: [
                       Icon(
-                        product['availabilityStatus'] == 'In Stock' ? Icons.check_circle : Icons.cancel,
-                        size: isTablet ? 20 : 16, 
-                        color: product['availabilityStatus'] == 'In Stock' ? Colors.green : Colors.red
+                        product['availabilityStatus'] == 'In Stock' 
+                          ? Icons.check_circle 
+                          : Icons.remove_shopping_cart,
+                        size: isTablet ? 20 : 16,
+                        color: product['availabilityStatus'] == 'In Stock' 
+                          ? Colors.green 
+                          : Colors.orange,
                       ),
                       SizedBox(width: isTablet ? 6 : 4),
                       Flexible(
                         child: Text(
-                          product['availabilityStatus'] ?? 'In Stock',
+                          product['availabilityStatus'] == null || product['availabilityStatus'] == ''
+                            ? 'In Stock'
+                            : product['availabilityStatus'],
                           style: TextStyle(
                             fontSize: isTablet ? 16 : 14,
-                            color: product['availabilityStatus'] == 'In Stock' ? Colors.green : Colors.red,
+                            color: product['availabilityStatus'] == 'In Stock' 
+                              ? Colors.green 
+                              : Colors.orange,
                             fontWeight: FontWeight.w500,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -1117,12 +1138,25 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                   children: [
                     IconButton(
                       onPressed: () => _toggleProductStatus(product['id']),
-                      icon: Icon(
-                        product['status'] == 'active' ? Icons.visibility_off : Icons.visibility,
-                        color: product['status'] == 'active' ? Colors.orange : Colors.green,
-                        size: isTablet ? 24 : 20,
+                      icon: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Icon(
+                            Icons.visibility,
+                            color: product['status'] == 'active' ? Colors.green : Colors.grey,
+                            size: isTablet ? 24 : 20,
+                          ),
+                          if (product['status'] == 'active')
+                            const SizedBox.shrink(),
+                          if (product['status'] != 'active')
+                            Icon(
+                              Icons.visibility_off,
+                              color: Colors.orange,
+                              size: isTablet ? 24 : 20,
+                            ),
+                        ],
                       ),
-                      tooltip: product['status'] == 'active' ? 'Deactivate' : 'Activate',
+                      tooltip: product['status'] == 'active' ? 'Visible' : 'Hidden',
                     ),
                     IconButton(
                       onPressed: () => _editProduct(product),

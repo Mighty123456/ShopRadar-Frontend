@@ -305,12 +305,14 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isTablet ? 20 : 16)),
-        child: Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
-            maxWidth: isTablet ? 600 : double.infinity,
-          ),
-          child: Column(
+        child: Stack(
+          children: [
+            Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.9,
+                maxWidth: isTablet ? 600 : double.infinity,
+              ),
+              child: Column(
             mainAxisSize: MainAxisSize.max,
             children: [
               Container(
@@ -730,6 +732,18 @@ class _OfferPromotionScreenState extends State<OfferPromotionScreen> {
               ),
             ],
           ),
+            if (_isLoading)
+              Positioned.fill(
+                child: AbsorbPointer(
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

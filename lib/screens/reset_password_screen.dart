@@ -390,16 +390,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         ),
                         const SizedBox(height: 8),
                       ],
-                      TextButton(
-                        onPressed: _canResend && !_isResending ? _resendOTP : null,
-                        child: Text(
-                          _isResending ? 'Sending...' : 'Resend Code',
-                          style: TextStyle(
-                            color: _canResend && !_isResending
-                                ? Colors.blue
-                                : Colors.grey,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      SizedBox(
+                        width: 180,
+                        height: 44,
+                        child: CustomButton(
+                          text: _isResending ? 'Sending...' : 'Resend Code',
+                          onPressed: _canResend && !_isResending ? _resendOTP : null,
+                          isLoading: _isResending,
+                          isPrimary: false,
                         ),
                       ),
                     ],

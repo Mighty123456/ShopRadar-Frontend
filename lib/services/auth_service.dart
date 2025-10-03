@@ -136,17 +136,31 @@ class AuthService {
         }
       }
       
-      final response = await ApiService.post('/api/auth/register', registrationData).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException('Registration request timed out', const Duration(seconds: 30));
-        },
-      );
+      // Do not force a short timeout here; hosted backends (e.g., Render) can take
+      // longer on cold start or while sending emails. Let ApiService's hosted
+      // timeout policy (75s/90s) handle this to avoid false timeouts where data
+      // is saved but the client gives up.
+      final response = await ApiService.post('/api/auth/register', registrationData);
 
       debugPrint('Registration response status: ${response.statusCode}');
       debugPrint('Registration response body: ${response.body}');
 
-      final data = jsonDecode(response.body);
+      Map<String, dynamic> data;
+      try {
+        data = jsonDecode(response.body);
+      } catch (e) {
+        // Handle non-JSON responses (e.g., HTML error page, empty body)
+        final String snippet = response.body.toString().trim();
+        final String shortSnippet = snippet.isEmpty
+            ? 'Empty response'
+            : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+        debugPrint('Registration response is not valid JSON: $e');
+        return {
+          'success': false,
+          'message': 'Network error: Invalid response format (status ${response.statusCode}). $shortSnippet',
+          'networkError': true,
+        };
+      }
       debugPrint('Backend registration response: $data');
       
       if (response.statusCode == 201 || response.statusCode == 200) {
@@ -161,6 +175,16 @@ class AuthService {
         };
       } else {
         debugPrint('Registration failed with status: ${response.statusCode}');
+        // If backend created user but failed to send email (500), allow flow to OTP
+        if (response.statusCode == 500 && (data['needsVerification'] == true) && (data['userId'] != null)) {
+          return {
+            'success': true,
+            'message': data['message'] ?? 'Registration created. Proceed to OTP verification.',
+            'needsVerification': true,
+            'userId': data['userId'],
+            'emailSendFailed': true,
+          };
+        }
         return {
           'success': false,
           'message': data['message'] ?? 'Registration failed',
@@ -196,7 +220,16 @@ class AuthService {
       });
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {'success': false, 'message': 'Invalid response format (status 200). $shortSnippet'};
+        }
         await _saveToken(data['token']);
         await _saveUser(data['user']);
         return {
@@ -205,7 +238,16 @@ class AuthService {
           'user': UserModel.fromJson(data['user']),
         };
       } else {
-        final error = jsonDecode(response.body);
+        Map<String, dynamic> error = {};
+        try {
+          error = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {'success': false, 'message': 'Request failed (status ${response.statusCode}). $shortSnippet'};
+        }
         return {'success': false, 'message': error['message'] ?? 'OTP verification failed'};
       }
     } catch (e) {
@@ -223,13 +265,31 @@ class AuthService {
       });
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {'success': false, 'message': 'Invalid response format (status 200). $shortSnippet'};
+        }
         return {
           'success': true,
           'message': data['message'],
         };
       } else {
-        final error = jsonDecode(response.body);
+        Map<String, dynamic> error = {};
+        try {
+          error = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {'success': false, 'message': 'Request failed (status ${response.statusCode}). $shortSnippet'};
+        }
         return {'success': false, 'message': error['message'] ?? 'Failed to resend OTP'};
       }
     } catch (e) {
@@ -254,7 +314,16 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {'success': false, 'message': 'Invalid response format (status 200). $shortSnippet'};
+        }
         await _saveToken(data['token']);
         await _saveUser(data['user']);
         return {
@@ -263,7 +332,20 @@ class AuthService {
           'user': UserModel.fromJson(data['user']),
         };
       } else {
-        final error = jsonDecode(response.body);
+        Map<String, dynamic> error = {};
+        try {
+          error = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {
+            'success': false,
+            'message': 'Request failed (status ${response.statusCode}). $shortSnippet',
+            'needsVerification': false,
+          };
+        }
         return {
           'success': false,
           'message': error['message'] ?? 'Login failed',
@@ -309,13 +391,34 @@ class AuthService {
       });
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {
+            'success': false,
+            'message': 'Invalid response format (status 200). $shortSnippet',
+          };
+        }
         return {
           'success': true,
           'message': data['message'],
         };
       } else {
-        final error = jsonDecode(response.body);
+        Map<String, dynamic> error = {};
+        try {
+          error = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {'success': false, 'message': 'Request failed (status ${response.statusCode}). $shortSnippet'};
+        }
         return {'success': false, 'message': error['message'] ?? 'Failed to send reset email'};
       }
     } catch (e) {
@@ -337,13 +440,31 @@ class AuthService {
       });
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {'success': false, 'message': 'Invalid response format (status 200). $shortSnippet'};
+        }
         return {
           'success': true,
           'message': data['message'],
         };
       } else {
-        final error = jsonDecode(response.body);
+        Map<String, dynamic> error = {};
+        try {
+          error = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {'success': false, 'message': 'Request failed (status ${response.statusCode}). $shortSnippet'};
+        }
         return {'success': false, 'message': error['message'] ?? 'Password reset failed'};
       }
     } catch (e) {
@@ -379,7 +500,19 @@ class AuthService {
     try {
       final response = await ApiService.get('/api/auth/profile');
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          final String snippet = response.body.toString().trim();
+          final String shortSnippet = snippet.isEmpty
+              ? 'Empty response'
+              : (snippet.length > 140 ? '${snippet.substring(0, 140)}…' : snippet);
+          return {
+            'success': false, 
+            'message': 'Invalid response format (status 200). $shortSnippet',
+          };
+        }
         return {
           'success': true, 
           'user': UserModel.fromJson(data['user']),

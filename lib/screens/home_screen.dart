@@ -10,6 +10,7 @@ import '../services/shop_service.dart';
 import '../services/recent_search_service.dart';
 import '../services/featured_offers_service.dart';
 import '../models/shop.dart';
+import '../services/realtime_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<FeaturedOffer> _featuredOffers = [];
   bool _loadingOffers = false;
   StreamSubscription<List<FeaturedOffer>>? _offersSubscription;
+  StreamSubscription<Map<String, dynamic>>? _realtimeSubscription;
 
   @override
   void initState() {
@@ -40,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadRecentSearches();
     _loadNearbyStores();
     _initializeFeaturedOffers();
+    _initializeRealtimeNotifications();
     // Show welcome message after a short delay
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 500), () {
@@ -47,6 +50,25 @@ class _HomeScreenState extends State<HomeScreen> {
           _showWelcomeMessage();
         }
       });
+    });
+  }
+
+  void _initializeRealtimeNotifications() {
+    _realtimeSubscription = RealtimeService().events.listen((event) async {
+      try {
+        if (!mounted) return;
+        if (event['type'] == 'new_shop_notification' && event['notification'] != null) {
+          final AppNotification n = event['notification'] as AppNotification;
+          MessageHelper.showAnimatedMessage(
+            context,
+            title: n.title,
+            message: n.message,
+            type: MessageType.info,
+            duration: const Duration(seconds: 5),
+          );
+          await _loadNotificationCount();
+        }
+      } catch (_) {}
     });
   }
   Future<void> _loadRecentSearches() async {
@@ -1281,6 +1303,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _offersSubscription?.cancel();
+    _realtimeSubscription?.cancel();
     FeaturedOffersService().dispose();
     super.dispose();
   }

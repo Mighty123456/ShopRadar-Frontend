@@ -13,7 +13,7 @@ class NetworkConfig {
     // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
     emulator: 'http://10.0.2.2:3000',
     // Use localhost for physical devices temporarily while Render.com is down
-    physicalDevice: 'https://shopradarbackend.onrender.com',
+    physicalDevice: 'https://shopradarbackend-ob4u.onrender.com',
     // Use localhost for simulator (iOS simulator can access localhost directly)
     simulator: 'http://localhost:3000',
   };
@@ -28,7 +28,7 @@ class NetworkConfig {
     // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
     emulator: 'ws://10.0.2.2:3000',
     // Use hosted API on physical devices so it works off your LAN
-    physicalDevice: 'wss://shopradarbackend.onrender.com',
+    physicalDevice: 'wss://shopradarbackend-ob4u.onrender.com',
     // Use localhost for simulator (iOS simulator can access localhost directly)
     simulator: 'ws://localhost:3000',
   };
@@ -120,6 +120,8 @@ class NetworkConfig {
         baseUrls[physicalDevice]!, // hosted URL for physical device
         ...fallbackUrls, // Add fallback URLs for better reliability
       ];
+      
+      debugPrint('🔍 Testing candidate URLs: $candidates');
 
       final futures = candidates.map((baseUrl) => 
         _testConnection(baseUrl).timeout(
@@ -296,10 +298,12 @@ class NetworkConfig {
   }
   
   static Future<void> refreshNetworkConfig() async {
+    debugPrint('🔄 Refreshing network configuration...');
     _isInitialized = false;
     _workingBaseUrl = null;
     _discoveredIPs.clear();
     _currentPortIndex = 0;
+    debugPrint('🧹 Cleared all cached network state');
     await initialize();
   }
   
@@ -359,6 +363,9 @@ class NetworkConfig {
     baseUrls[physicalDevice] = url;
     if (_currentEnvironment == physicalDevice) {
       _workingBaseUrl = null;
+      // Clear discovered IPs to force using the new URL
+      _discoveredIPs.clear();
+      debugPrint('🔄 Cleared cached URLs and set new physical device URL: $url');
     }
   }
   

@@ -124,7 +124,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
             );
           },
           icon: const Icon(Icons.map, size: 16),
-          label: const Text('View on Map'),
+          label: const Text('View all shops on map'),
           style: TextButton.styleFrom(
             foregroundColor: const Color(0xFF2979FF),
             textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
@@ -163,7 +163,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
               );
             },
             icon: const Icon(Icons.directions),
-            label: const Text('Show All Shops on Map'),
+            label: const Text('View all shops on map'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2979FF),
               foregroundColor: Colors.white,
