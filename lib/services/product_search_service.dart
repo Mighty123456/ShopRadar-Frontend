@@ -70,6 +70,7 @@ class ProductSearchService {
         distanceKm: distanceKm,
         bestOfferPercent: bestOfferPercent,
         bestPrice: price,
+        isLive: shop['isLive'] ?? true,
       );
 
       // Keep best offer/price per shop
@@ -102,7 +103,7 @@ class ProductSearchService {
         reviewCount: 0,
         distance: a.distanceKm,
         offers: offers,
-        isOpen: true,
+        isOpen: a.isLive,
         openingHours: '',
         phone: a.phone,
         imageUrl: null,
@@ -177,6 +178,30 @@ class ProductSearchService {
             final Map<String, dynamic> productData = p as Map<String, dynamic>;
             final Map<String, dynamic>? shopData = productData['shop'] as Map<String, dynamic>?;
             
+            // Calculate best offer percentage from shop offers
+            int bestOfferPercent = 0;
+            if (shopData?['offers'] is List) {
+              for (final offerData in shopData!['offers'] as List) {
+                if (offerData is Map<String, dynamic>) {
+                  final discountValue = (offerData['discountValue'] as num?)?.toDouble() ?? 0.0;
+                  final discountType = offerData['discountType']?.toString() ?? 'Percentage';
+                  
+                  int offerPercent = 0;
+                  if (discountType == 'Percentage') {
+                    offerPercent = discountValue.round();
+                  } else if (discountType == 'Fixed Amount') {
+                    // For fixed amount, we'll use the raw value as percentage
+                    // In a real implementation, you'd need the product price to calculate percentage
+                    offerPercent = discountValue.round();
+                  }
+                  
+                  if (offerPercent > bestOfferPercent) {
+                    bestOfferPercent = offerPercent;
+                  }
+                }
+              }
+            }
+            
             return ProductResult(
               id: (productData['id'] ?? '').toString(),
               name: (productData['name'] ?? '').toString(),
@@ -193,7 +218,7 @@ class ProductSearchService {
               shopLongitude: shopData?['location']?['coordinates'] is List && (shopData?['location']['coordinates'] as List).length >= 2
                   ? ((shopData?['location']['coordinates'][0] as num).toDouble())
                   : 0.0,
-              bestOfferPercent: 0, // Not used in this enhanced search
+              bestOfferPercent: bestOfferPercent,
               distanceKm: 0.0, // Will be calculated by the calling code
             );
           }).toList();
@@ -309,6 +334,7 @@ class _ShopAgg {
   final double distanceKm;
   int bestOfferPercent;
   double bestPrice;
+  final bool isLive;
 
   _ShopAgg({
     required this.id,
@@ -321,6 +347,7 @@ class _ShopAgg {
     required this.distanceKm,
     required this.bestOfferPercent,
     required this.bestPrice,
+    required this.isLive,
   });
 }
 

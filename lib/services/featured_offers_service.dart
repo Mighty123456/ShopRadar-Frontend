@@ -176,8 +176,10 @@ class FeaturedOffersService {
       final offers = await fetchFeaturedOffers(limit: 10);
       if (offers.isNotEmpty) {
         _offers = offers;
-        _offersController.add(_offers);
-        debugPrint('Refreshed offers via polling: ${offers.length} offers');
+        if (!_offersController.isClosed) {
+          _offersController.add(_offers);
+          debugPrint('Refreshed offers via polling: ${offers.length} offers');
+        }
       }
     } catch (e) {
       debugPrint('Error refreshing offers: $e');
@@ -211,7 +213,9 @@ class FeaturedOffersService {
               .toList();
           
           _offers = offers;
-          _offersController.add(_offers);
+          if (!_offersController.isClosed) {
+            _offersController.add(_offers);
+          }
           
           debugPrint('Fetched ${offers.length} featured offers');
           return offers;
@@ -270,7 +274,12 @@ class FeaturedOffersService {
   // Dispose resources
   void dispose() {
     _pollingTimer?.cancel();
-    _offersController.close();
     _isPolling = false;
+    if (!_offersController.isClosed) {
+      _offersController.close();
+    }
   }
+  
+  // Check if service is properly initialized
+  bool get isInitialized => !_offersController.isClosed && _isPolling;
 }

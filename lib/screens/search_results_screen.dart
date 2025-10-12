@@ -4,9 +4,11 @@ import '../models/product_result.dart';
 import '../services/search_service.dart';
 import '../services/recent_search_service.dart';
 import '../services/connectivity_service.dart';
+import '../services/shop_service.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
 import 'map_screen_free.dart';
+import '../widgets/voice_search_button.dart';
 
 class SearchResultsScreen extends StatefulWidget {
   final String query;
@@ -93,6 +95,14 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     final items = <Widget>[];
     final List<Shop> shops = _filteredShops();
     final List<ProductResult> products = _filteredProducts();
+    
+    // Debug logging
+    debugPrint('Building mixed list: ${products.length} products, ${shops.length} shops');
+    debugPrint('Raw shop results: ${_shopResults.length} shops');
+    debugPrint('Active filters: minRating=$_minRating, maxDistanceKm=$_maxDistanceKm, minPrice=$_minPrice, maxPrice=$_maxPrice');
+    debugPrint('Shop distances: ${_shopResults.map((s) => '${s.name}: ${s.distance.toStringAsFixed(2)}km').join(', ')}');
+    debugPrint('Filtered shops: ${shops.map((s) => '${s.name} (${s.offers.length} offers, ${s.distance.toStringAsFixed(2)}km)').join(', ')}');
+    
     if (products.isNotEmpty) {
       items.add(_buildSectionHeader(
         'Products',
@@ -141,6 +151,24 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         '${shops.length} total',
         Icons.store,
         Colors.grey[600]!,
+        action: TextButton.icon(
+          onPressed: shops.isEmpty ? null : () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => MapScreenFree(
+                  shopsOverride: shops,
+                  drawRoutesForAll: true,
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.map, size: 16),
+          label: const Text('View all shops on map'),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF2979FF),
+            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ),
       ));
       for (final s in shops) {
         items.add(_buildShopTile(s));
@@ -182,13 +210,9 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
 
   List<Shop> _recommendShops(List<Shop> shops) {
     if (shops.isEmpty) return const [];
-    // Score: lower distance better, higher rating better, presence of offer gives a small boost
+    // Use the new visit priority score for better recommendations
     final List<MapEntry<Shop, double>> scored = shops.map((s) {
-      final double distanceScore = 1.0 / (1.0 + (s.distance <= 0 ? 5.0 : s.distance));
-      final double ratingScore = (s.rating / 5.0);
-      final double offerBoost = s.offers.isNotEmpty ? (s.offers.first.discount.clamp(0, 50) / 100.0) : 0.0;
-      final double total = (distanceScore * 0.5) + (ratingScore * 0.4) + (offerBoost * 0.1);
-      return MapEntry(s, total);
+      return MapEntry(s, s.visitPriorityScore);
     }).toList();
     scored.sort((a, b) => b.value.compareTo(a.value));
     return scored.take(3).map((e) => e.key).toList();
@@ -199,6 +223,9 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     final isTablet = screenSize.width > 600;
     final hasOffer = p.bestOfferPercent > 0;
     final discountedPrice = hasOffer ? p.price * (1 - p.bestOfferPercent / 100) : p.price;
+    
+    // Debug logging
+    debugPrint('Building product tile for ${p.name}: bestOfferPercent=${p.bestOfferPercent}, hasOffer=$hasOffer');
     
     return Container(
       margin: EdgeInsets.symmetric(
@@ -292,33 +319,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (hasOffer)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.orange.withValues(alpha: 0.3),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Text(
-                                    '${p.bestOfferPercent}% OFF',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
                             ],
                           ),
                           SizedBox(height: isTablet ? 8 : 6),
@@ -381,24 +381,13 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (hasOffer) ...[
-                          Text(
-                            '₹${p.price.toStringAsFixed(0)}',
-                            style: TextStyle(
-                              fontSize: isTablet ? 14 : 12,
-                              color: Colors.grey[500],
-                              decoration: TextDecoration.lineThrough,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                        ],
+                        // Original price strikethrough removed with offer tag
                         Text(
                           '₹${discountedPrice.toStringAsFixed(0)}',
                           style: TextStyle(
                             fontSize: isTablet ? 20 : 18,
                             fontWeight: FontWeight.w800,
-                            color: hasOffer ? const Color(0xFFFF6B35) : const Color(0xFF2979FF),
+                            color: const Color(0xFF2979FF),
                           ),
                         ),
                       ],
@@ -548,6 +537,57 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         userLongitude: pos?.longitude,
       );
       if (!mounted) return;
+      
+      // Debug logging
+      debugPrint('Search results: ${mixed.products.length} products, ${mixed.shops.length} shops');
+      debugPrint('Shops: ${mixed.shops.map((s) => '${s.name} (${s.offers.length} offers)').join(', ')}');
+      
+      // If no shops returned, try to get nearby shops as fallback
+      if (mixed.shops.isEmpty && pos != null) {
+        debugPrint('No shops returned, trying nearby shops fallback');
+        try {
+          final nearbyShops = await SearchService.searchShops(q);
+          if (nearbyShops.isNotEmpty) {
+            debugPrint('Found ${nearbyShops.length} nearby shops as fallback');
+            setState(() {
+              _productResults = mixed.products;
+              _shopResults = nearbyShops;
+            });
+            return;
+          }
+        } catch (e) {
+          debugPrint('Nearby shops fallback failed: $e');
+        }
+        
+        // If still no shops, try to get any nearby shops without search query
+        debugPrint('Still no shops, trying to get any nearby shops');
+        try {
+          final result = await ShopService.getNearbyShops(
+            latitude: pos.latitude,
+            longitude: pos.longitude,
+            radius: 50000, // 50km radius
+          );
+          if (result['success'] == true && result['shops'] is List) {
+            final List<dynamic> shopsData = result['shops'] as List<dynamic>;
+            final List<Shop> nearbyShops = shopsData.map((shopData) {
+              final Map<String, dynamic> shop = shopData as Map<String, dynamic>;
+              return Shop.fromJson(shop);
+            }).toList();
+            
+            if (nearbyShops.isNotEmpty) {
+              debugPrint('Found ${nearbyShops.length} nearby shops without search query');
+              setState(() {
+                _productResults = mixed.products;
+                _shopResults = nearbyShops;
+              });
+              return;
+            }
+          }
+        } catch (e) {
+          debugPrint('Failed to get nearby shops: $e');
+        }
+      }
+      
       setState(() {
         _productResults = mixed.products;
         _shopResults = mixed.shops;
@@ -635,6 +675,15 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                 Icons.search,
                 color: Colors.white70,
                 size: isTablet ? 20 : 18,
+              ),
+              suffixIcon: VoiceSearchButton(
+                onVoiceResult: (result) {
+                  _controller.text = result;
+                  _runSearch(result);
+                },
+                iconColor: Colors.white70,
+                iconSize: isTablet ? 20 : 18,
+                tooltip: 'Voice search',
               ),
             ),
             onSubmitted: (value) => _runSearch(value),
@@ -757,7 +806,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   List<Shop> _filteredShops() {
     return _shopResults.where((s) {
       if (_minRating > 0.0 && s.rating < _minRating) return false;
-      if (_maxDistanceKm != null && s.distance > _maxDistanceKm!) return false;
+      // Only apply distance filter if distance is valid (> 0) and within limit
+      if (_maxDistanceKm != null && s.distance > 0 && s.distance > _maxDistanceKm!) return false;
       return true;
     }).toList();
   }
@@ -765,7 +815,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   List<ProductResult> _filteredProducts() {
     return _productResults.where((p) {
       if (_minRating > 0.0 && p.shopRating < _minRating) return false;
-      if (_maxDistanceKm != null && p.distanceKm > _maxDistanceKm!) return false;
+      // Only apply distance filter if distance is valid (> 0) and within limit
+      if (_maxDistanceKm != null && p.distanceKm > 0 && p.distanceKm > _maxDistanceKm!) return false;
       if (_minPrice != null && p.price < _minPrice!) return false;
       if (_maxPrice != null && p.price > _maxPrice!) return false;
       return true;
@@ -931,6 +982,12 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     final hasOffers = shop.offers.isNotEmpty;
     final bestOffer = hasOffers ? shop.offers.first : null;
     
+    // Debug logging
+    debugPrint('Building shop tile for ${shop.name}: ${shop.offers.length} offers');
+    if (hasOffers) {
+      debugPrint('Best offer: ${bestOffer?.title} - ${bestOffer?.formattedDiscount}');
+    }
+    
     return Container(
       margin: EdgeInsets.symmetric(
         horizontal: isTablet ? 16 : 12,
@@ -1003,7 +1060,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (hasOffers)
+                              if (hasOffers && bestOffer != null)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
@@ -1022,7 +1079,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                                     ],
                                   ),
                                   child: Text(
-                                    bestOffer?.formattedDiscount ?? 'OFFER',
+                                    bestOffer.formattedDiscount,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w700,
@@ -1105,7 +1162,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                                 ),
                               ),
                               const Spacer(),
-                              if (hasOffers)
+                              if (hasOffers && bestOffer != null && bestOffer.discount > 0)
                                 Text(
                                   'Best Deal Available',
                                   style: TextStyle(
@@ -1115,6 +1172,16 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                                   ),
                                 ),
                             ],
+                          ),
+                          SizedBox(height: isTablet ? 6 : 4),
+                          // Ranking reason
+                          Text(
+                            shop.rankingReason,
+                            style: TextStyle(
+                              fontSize: isTablet ? 12 : 10,
+                              color: const Color(0xFF2979FF),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -1128,11 +1195,16 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          Navigator.of(context).pushNamed('/map', arguments: {
-                            'searchQuery': _controller.text,
-                            'shops': _shopResults,
-                            'showOnlyUser': false,
-                          });
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => MapScreenFree(
+                                searchQuery: _controller.text,
+                                shopsOverride: _shopResults,
+                                routeToShop: shop,
+                                drawRoutesForAll: false,
+                              ),
+                            ),
+                          );
                         },
                         icon: const Icon(Icons.map, size: 16),
                         label: const Text('View on Map'),

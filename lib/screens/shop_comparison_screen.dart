@@ -372,8 +372,6 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
     );
   }
 
-  // Removed mock price/availability helpers
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

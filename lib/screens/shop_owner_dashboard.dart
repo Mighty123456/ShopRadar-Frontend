@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import '../widgets/animated_message_dialog.dart';
 import '../services/shop_service.dart';
 import 'shop_profile_screen.dart';
-import 'product_management_screen.dart';
+import 'hierarchical_product_screen.dart';
 import 'offer_promotion_screen.dart';
 import 'analytics_dashboard_screen.dart';
 import 'customer_interaction_screen.dart';
 import 'ai_insights_screen.dart';
 import 'profile_screen.dart';
 import '../services/auth_service.dart';
-// Removed unused UserModel import
 
 class ShopOwnerDashboard extends StatefulWidget {
   const ShopOwnerDashboard({super.key});
@@ -23,7 +22,6 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
   bool _isShopOpen = true;
   Map<String, dynamic>? _shopData;
   Map<String, dynamic>? _shopStats;
-  // Removed unused field _currentUser
 
   @override
   void initState() {
@@ -451,7 +449,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const ProductManagementScreen(),
+                    builder: (context) => const HierarchicalProductScreen(),
                   ),
                 );
                 // Refresh dashboard data when returning from product management
@@ -762,7 +760,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
   }
 
   Widget _buildProductsTab() {
-    return const ProductManagementScreen();
+    return const HierarchicalProductScreen();
   }
 
   Widget _buildOffersTab() {

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
 import '../services/shop_service.dart';
 import '../models/shop.dart';
@@ -8,6 +10,7 @@ import '../widgets/shop_info_window.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/search_overlay.dart';
 import 'map_screen_free.dart';
+import '../utils/shop_utils.dart';
 
 class MapScreen extends StatefulWidget {
   final String? searchQuery;
@@ -36,6 +39,8 @@ class _MapScreenState extends State<MapScreen> {
   LatLng? _currentLocation;
   Shop? _selectedShop;
   bool _showShopDetails = false;
+  StreamSubscription<Position>? _positionSubscription;
+  bool _followUser = true;
   // Google-specific fields removed for WebView implementation
   
   // Simple distance calculator (Haversine) for non-ML ordering
@@ -54,6 +59,20 @@ class _MapScreenState extends State<MapScreen> {
   
   double _deg2rad(double deg) => deg * (3.141592653589793 / 180.0);
 
+  // Haversine distance calculation for position updates
+  double _haversineMeters(LatLng a, LatLng b) {
+    const double earthRadius = 6371000; // meters
+    final double dLat = _deg2rad(b.latitude - a.latitude);
+    final double dLon = _deg2rad(b.longitude - a.longitude);
+    final double lat1 = _deg2rad(a.latitude);
+    final double lat2 = _deg2rad(b.latitude);
+    final double sinHalfDLat = math.sin(dLat / 2);
+    final double sinHalfDLon = math.sin(dLon / 2);
+    final double h = sinHalfDLat * sinHalfDLat + math.cos(lat1) * math.cos(lat2) * sinHalfDLon * sinHalfDLon;
+    final double c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
+    return earthRadius * c;
+  }
+
   // Map configuration
   static const CameraPosition _defaultLocation = CameraPosition(
     target: LatLng(37.7749, -122.4194), // San Francisco
@@ -70,6 +89,12 @@ class _MapScreenState extends State<MapScreen> {
     if (widget.category != null) {
       _selectedCategory = widget.category!;
     }
+  }
+
+  @override
+  void dispose() {
+    _positionSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _initializeMap() async {
@@ -96,6 +121,9 @@ class _MapScreenState extends State<MapScreen> {
             CameraUpdate.newLatLng(_currentLocation!),
           );
         }
+
+        // Start real-time location tracking
+        _startPositionStream();
       }
       
       // Load nearby shops
@@ -140,15 +168,7 @@ class _MapScreenState extends State<MapScreen> {
         final List<dynamic> raw = result['shops'] as List<dynamic>;
         final List<Shop> shops = raw.map((s) {
           final Map<String, dynamic> shop = s as Map<String, dynamic>;
-          final loc = shop['location'] as Map<String, dynamic>?;
-          final coords = (loc != null ? loc['coordinates'] : null) as List<dynamic>?;
-          final double latitude = coords != null && coords.length == 2 ? (coords[1] as num).toDouble() : 0.0;
-          final double longitude = coords != null && coords.length == 2 ? (coords[0] as num).toDouble() : 0.0;
-          // Compute rough distance in km if we have current location
-          double distanceKm = 0.0;
-          if (_currentLocation != null) {
-            distanceKm = _distanceMeters(_currentLocation!, LatLng(latitude, longitude)) / 1000.0;
-          }
+          // Distance and coordinates will be calculated in ShopUtils.createShopWithDistance
           // Parse offers from backend response
           final List<ShopOffer> offers = [];
           if (shop['offers'] is List) {
@@ -181,24 +201,11 @@ class _MapScreenState extends State<MapScreen> {
             debugPrint('No offers found for shop ${shop['shopName']}');
           }
 
-          return Shop(
-            id: (shop['_id'] ?? shop['id'] ?? '').toString(),
-            name: (shop['shopName'] ?? shop['name'] ?? '').toString(),
-            category: shop['category']?.toString() ?? '',
-            address: (shop['address'] ?? '').toString(),
-            latitude: latitude,
-            longitude: longitude,
-            rating: (shop['rating'] as num?)?.toDouble() ?? 0.0,
-            reviewCount: (shop['reviewCount'] as int?) ?? 0,
-            distance: distanceKm,
+          return ShopUtils.createShopWithDistance(
+            shopData: shop,
+            userLatitude: _currentLocation?.latitude,
+            userLongitude: _currentLocation?.longitude,
             offers: offers,
-            isOpen: shop['isLive'] == true,
-            openingHours: '',
-            phone: (shop['phone'] ?? '').toString(),
-            imageUrl: null,
-            description: null,
-            amenities: const [],
-            lastUpdated: null,
           );
         }).toList();
 
@@ -310,10 +317,45 @@ class _MapScreenState extends State<MapScreen> {
     _loadNearbyShops();
   }
 
+  void _startPositionStream() {
+    _positionSubscription?.cancel();
+    const LocationSettings settings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10, // Update every 10 meters
+    );
+    
+    _positionSubscription = Geolocator.getPositionStream(locationSettings: settings).listen((Position pos) {
+      final LatLng newLoc = LatLng(pos.latitude, pos.longitude);
+      if (!mounted) return;
+      
+      double distance = 0.0;
+      // Only update if location changed significantly (more than 10 meters)
+      if (_currentLocation != null) {
+        distance = _haversineMeters(_currentLocation!, newLoc);
+        if (distance < 10) return; // Skip update if movement is less than 10 meters
+      }
+      
+      setState(() {
+        _currentLocation = newLoc;
+      });
+      
+      // Follow user movement if enabled
+      if (_followUser && _mapController != null) {
+        _mapController!.animateCamera(
+          CameraUpdate.newLatLng(newLoc),
+        );
+      }
+    });
+  }
+
   void _onMyLocationPressed() async {
     final position = await LocationService.getCurrentLocation();
     if (position != null && _mapController != null) {
       final location = LatLng(position.latitude, position.longitude);
+      setState(() {
+        _currentLocation = location;
+        _followUser = true;
+      });
       _mapController!.animateCamera(
         CameraUpdate.newLatLngZoom(location, 16.0),
       );

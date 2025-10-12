@@ -7,6 +7,7 @@ import '../services/location_service.dart';
 import '../services/favorite_shops_service.dart';
 import 'shop_details_screen.dart';
 import 'map_screen_free.dart';
+import '../widgets/voice_search_button.dart';
 
 class StoresScreen extends StatefulWidget {
   const StoresScreen({super.key});
@@ -24,7 +25,7 @@ class _StoresScreenState extends State<StoresScreen> {
   double _minRating = 0.0;
   double? _maxDistanceKm;
   bool _openNowOnly = false;
-  String _sortBy = 'distance'; // distance, rating, name
+  String _sortBy = 'recommended'; // recommended, distance, rating, name
 
   final List<String> _categories = [
     'All',
@@ -69,43 +70,70 @@ class _StoresScreenState extends State<StoresScreen> {
       
       final shops = (result['shops'] as List)
           .map((shop) {
-            final shopObj = Shop.fromJson(shop);
-            
-            // If distance is 0 or not provided, calculate it client-side
-            if (shopObj.distance == 0.0 && position != null) {
-              final calculatedDistance = _calculateDistance(
-                position.latitude, 
-                position.longitude, 
-                shopObj.latitude, 
-                shopObj.longitude
-              );
-              // Create a new shop object with calculated distance
+            try {
+              final shopObj = Shop.fromJson(shop);
+              
+              // If distance is 0 or not provided, calculate it client-side
+              if (shopObj.distance == 0.0 && position != null) {
+                final calculatedDistance = _calculateDistance(
+                  position.latitude, 
+                  position.longitude, 
+                  shopObj.latitude, 
+                  shopObj.longitude
+                );
+                // Create a new shop object with calculated distance
+                return Shop(
+                  id: shopObj.id,
+                  name: shopObj.name,
+                  category: shopObj.category,
+                  address: shopObj.address,
+                  latitude: shopObj.latitude,
+                  longitude: shopObj.longitude,
+                  rating: shopObj.rating,
+                  reviewCount: shopObj.reviewCount,
+                  distance: calculatedDistance,
+                  offers: shopObj.offers,
+                  isOpen: shopObj.isOpen,
+                  openingHours: shopObj.openingHours,
+                  phone: shopObj.phone,
+                  imageUrl: shopObj.imageUrl,
+                  description: shopObj.description,
+                  amenities: shopObj.amenities,
+                  lastUpdated: shopObj.lastUpdated,
+                );
+              }
+              
+              return shopObj;
+            } catch (e) {
+              debugPrint('Error parsing shop data: $e');
+              debugPrint('Shop data: $shop');
+              // Return a default shop object to prevent the entire list from failing
               return Shop(
-                id: shopObj.id,
-                name: shopObj.name,
-                category: shopObj.category,
-                address: shopObj.address,
-                latitude: shopObj.latitude,
-                longitude: shopObj.longitude,
-                rating: shopObj.rating,
-                reviewCount: shopObj.reviewCount,
-                distance: calculatedDistance,
-                offers: shopObj.offers,
-                isOpen: shopObj.isOpen,
-                openingHours: shopObj.openingHours,
-                phone: shopObj.phone,
-                imageUrl: shopObj.imageUrl,
-                description: shopObj.description,
-                amenities: shopObj.amenities,
-                lastUpdated: shopObj.lastUpdated,
+                id: (shop['_id'] ?? shop['id'] ?? 'unknown').toString(),
+                name: (shop['shopName'] ?? shop['name'] ?? 'Unknown Shop').toString(),
+                category: (shop['category'] ?? 'Other').toString(),
+                address: (shop['address'] ?? 'Address not available').toString(),
+                latitude: (shop['latitude'] ?? 0.0).toDouble(),
+                longitude: (shop['longitude'] ?? 0.0).toDouble(),
+                rating: (shop['rating'] ?? 0.0).toDouble(),
+                reviewCount: (shop['reviewCount'] ?? 0) as int,
+                distance: (shop['distanceKm'] ?? shop['distance'] ?? 0.0).toDouble(),
+                offers: const [],
+                isOpen: (shop['isOpen'] ?? shop['isLive'] ?? false) as bool,
+                openingHours: (shop['openingHours'] ?? '').toString(),
+                phone: (shop['phone'] ?? '').toString(),
+                imageUrl: shop['imageUrl']?.toString(),
+                description: shop['description']?.toString(),
+                amenities: const [],
+                lastUpdated: null,
               );
             }
-            
-            return shopObj;
           })
           .toList();
 
       if (mounted) {
+        debugPrint('Stores screen: Loaded ${shops.length} shops');
+        debugPrint('Shops data: ${shops.map((s) => '${s.name} (${s.distance.toStringAsFixed(2)}km)').join(', ')}');
         setState(() {
           _allShops = shops;
           _filteredShops = shops;
@@ -129,6 +157,9 @@ class _StoresScreenState extends State<StoresScreen> {
 
   void _applyFilters() {
     List<Shop> filtered = List.from(_allShops);
+    
+    debugPrint('Applying filters: ${_allShops.length} total shops');
+    debugPrint('Filters: search="$_searchQuery", category="$_selectedCategory", minRating=$_minRating, maxDistance=$_maxDistanceKm, openNow=$_openNowOnly, sortBy="$_sortBy"');
 
     // Search filter
     if (_searchQuery.trim().isNotEmpty) {
@@ -138,26 +169,31 @@ class _StoresScreenState extends State<StoresScreen> {
                shop.category.toLowerCase().contains(query) ||
                (shop.description?.toLowerCase().contains(query) ?? false);
       }).toList();
+      debugPrint('After search filter: ${filtered.length} shops');
     }
 
     // Category filter
     if (_selectedCategory != 'All') {
       filtered = filtered.where((shop) => shop.category == _selectedCategory).toList();
+      debugPrint('After category filter: ${filtered.length} shops');
     }
 
     // Rating filter
     if (_minRating > 0.0) {
       filtered = filtered.where((shop) => shop.rating >= _minRating).toList();
+      debugPrint('After rating filter: ${filtered.length} shops');
     }
 
-    // Distance filter
+    // Distance filter - only apply if distance is valid (> 0) and within limit
     if (_maxDistanceKm != null) {
-      filtered = filtered.where((shop) => shop.distance <= _maxDistanceKm!).toList();
+      filtered = filtered.where((shop) => shop.distance > 0 && shop.distance <= _maxDistanceKm!).toList();
+      debugPrint('After distance filter: ${filtered.length} shops');
     }
 
     // Open now filter
     if (_openNowOnly) {
       filtered = filtered.where((shop) => shop.isOpen).toList();
+      debugPrint('After open now filter: ${filtered.length} shops');
     }
 
     // Sort
@@ -171,7 +207,15 @@ class _StoresScreenState extends State<StoresScreen> {
       case 'name':
         filtered.sort((a, b) => a.name.compareTo(b.name));
         break;
+      case 'recommended':
+      default:
+        // Sort by visit priority score (higher score = better to visit first)
+        filtered.sort((a, b) => b.visitPriorityScore.compareTo(a.visitPriorityScore));
+        break;
     }
+
+    debugPrint('Final filtered shops: ${filtered.length} shops');
+    debugPrint('Filtered shop names: ${filtered.map((s) => '${s.name} (${s.distance.toStringAsFixed(2)}km)').join(', ')}');
 
     setState(() {
       _filteredShops = filtered;
@@ -253,11 +297,26 @@ class _StoresScreenState extends State<StoresScreen> {
         children: [
           // Search bar
           TextField(
+            controller: TextEditingController(text: _searchQuery),
             decoration: InputDecoration(
               hintText: 'Search stores...',
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  VoiceSearchButton(
+                    onVoiceResult: (result) {
+                      setState(() {
+                        _searchQuery = result;
+                      });
+                      _applyFilters();
+                    },
+                    iconColor: Colors.grey[600],
+                    iconSize: 20,
+                    tooltip: 'Voice search',
+                  ),
+                  if (_searchQuery.isNotEmpty)
+                    IconButton(
                       icon: const Icon(Icons.clear),
                       onPressed: () {
                         setState(() {
@@ -265,8 +324,9 @@ class _StoresScreenState extends State<StoresScreen> {
                         });
                         _applyFilters();
                       },
-                    )
-                  : null,
+                    ),
+                ],
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -292,16 +352,14 @@ class _StoresScreenState extends State<StoresScreen> {
                 const SizedBox(width: 8),
                 _buildFilterChip('Distance', _maxDistanceKm != null ? '≤${_maxDistanceKm!.toStringAsFixed(1)}km' : 'Any', () => _showDistanceFilter()),
                 const SizedBox(width: 8),
-                _buildFilterChip('Sort', _sortBy.toUpperCase(), () => _showSortOptions()),
-                if (_openNowOnly) ...[
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Open Now', 'Yes', () {
-                    setState(() {
-                      _openNowOnly = false;
-                    });
-                    _applyFilters();
-                  }),
-                ],
+                _buildFilterChip('Sort', _getSortDisplayName(_sortBy), () => _showSortOptions()),
+                const SizedBox(width: 8),
+                _buildFilterChip('Open Now', _openNowOnly ? 'Yes' : 'All', () {
+                  setState(() {
+                    _openNowOnly = !_openNowOnly;
+                  });
+                  _applyFilters();
+                }),
               ],
             ),
           ),
@@ -348,7 +406,22 @@ class _StoresScreenState extends State<StoresScreen> {
            _minRating > 0.0 || 
            _maxDistanceKm != null || 
            _openNowOnly ||
-           _sortBy != 'distance';
+           _sortBy != 'recommended';
+  }
+
+  String _getSortDisplayName(String sortKey) {
+    switch (sortKey) {
+      case 'recommended':
+        return 'Recommended';
+      case 'distance':
+        return 'Distance';
+      case 'rating':
+        return 'Rating';
+      case 'name':
+        return 'Name';
+      default:
+        return 'Recommended';
+    }
   }
 
   void _clearFilters() {
@@ -457,7 +530,7 @@ class _StoresScreenState extends State<StoresScreen> {
                 ),
               ),
             ),
-            if (shop.offers.isNotEmpty)
+            if (shop.offers.isNotEmpty && shop.offers.first.discount > 0)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -508,6 +581,16 @@ class _StoresScreenState extends State<StoresScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 4),
+            // Ranking reason
+            Text(
+              shop.rankingReason,
+              style: TextStyle(
+                fontSize: isTablet ? 12 : 10,
+                color: const Color(0xFF2979FF),
+                fontWeight: FontWeight.w500,
+              ),
             ),
             const SizedBox(height: 8),
             Row(
@@ -748,12 +831,17 @@ class _StoresScreenState extends State<StoresScreen> {
               Flexible(
                 child: ListView(
                   shrinkWrap: true,
-                  children: ['distance', 'rating', 'name'].map((sort) => ListTile(
-                    title: Text(sort.toUpperCase()),
-                    trailing: _sortBy == sort ? const Icon(Icons.check, color: Color(0xFF2979FF)) : null,
+                  children: [
+                    {'key': 'recommended', 'label': 'Recommended'},
+                    {'key': 'distance', 'label': 'Distance'},
+                    {'key': 'rating', 'label': 'Rating'},
+                    {'key': 'name', 'label': 'Name'},
+                  ].map((sort) => ListTile(
+                    title: Text(sort['label']!),
+                    trailing: _sortBy == sort['key'] ? const Icon(Icons.check, color: Color(0xFF2979FF)) : null,
                     onTap: () {
                       setState(() {
-                        _sortBy = sort;
+                        _sortBy = sort['key']!;
                       });
                       _applyFilters();
                       Navigator.pop(context);

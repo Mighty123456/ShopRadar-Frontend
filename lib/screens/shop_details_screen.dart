@@ -5,6 +5,7 @@ import '../services/shop_offers_service.dart' as offers_service;
 import 'map_screen_free.dart';
 import '../widgets/rating_widget.dart';
 import '../widgets/review_card.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ShopDetailsScreen extends StatefulWidget {
   final Shop shop;
@@ -47,6 +48,38 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
       setState(() {
         _isFavorite = isFav;
       });
+    }
+  }
+
+  Future<void> _makePhoneCall() async {
+    final phoneNumber = widget.shop.phone;
+    if (phoneNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone number not available')),
+      );
+      return;
+    }
+
+    // Clean the phone number (remove spaces, dashes, etc.)
+    final cleanPhoneNumber = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri phoneUri = Uri(scheme: 'tel', path: cleanPhoneNumber);
+    
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cannot make phone calls on this device')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error making phone call: $e')),
+        );
+      }
     }
   }
 
@@ -96,20 +129,16 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
     });
 
     try {
-      final result = await offers_service.ShopOffersService.getShopOffers(
+      // Use getActiveShopOffers which has fallback to sample offers
+      final offers = await offers_service.ShopOffersService.getActiveShopOffers(
         shopId: widget.shop.id,
         limit: 20,
       );
 
       if (mounted) {
         setState(() {
-          if (result['success'] == true) {
-            _offers = result['offers'] as List<offers_service.ShopOffer>;
-            _offersError = null;
-          } else {
-            _offers = [];
-            _offersError = result['message'] ?? 'Failed to load offers';
-          }
+          _offers = offers;
+          _offersError = null;
           _isLoadingOffers = false;
         });
       }
@@ -342,7 +371,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                       Icon(Icons.access_time, color: Colors.grey[600], size: 20),
                       const SizedBox(width: 8),
                       Text(
-                        widget.shop.openingHours,
+                        widget.shop.formattedOpeningHours,
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                     ],
@@ -377,12 +406,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                       const SizedBox(width: 12),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {
-                            // TODO: Call shop
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Calling shop...')),
-                            );
-                          },
+                          onPressed: _makePhoneCall,
                           icon: const Icon(Icons.phone),
                           label: const Text('Call'),
                           style: OutlinedButton.styleFrom(

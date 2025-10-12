@@ -63,10 +63,10 @@ class LocationService {
         ),
       );
 
-      // Check if accuracy is acceptable
+      // Check if accuracy is acceptable, but be more lenient
       if (position.accuracy > _accuracyThreshold) {
-        debugPrint('Location accuracy is too low: ${position.accuracy}m');
-        return null;
+        debugPrint('Location accuracy is low: ${position.accuracy}m, but accepting it for search');
+        // Don't return null, accept the position even with lower accuracy
       }
 
       return position;

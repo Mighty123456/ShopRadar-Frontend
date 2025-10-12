@@ -11,6 +11,8 @@ import '../services/recent_search_service.dart';
 import '../services/featured_offers_service.dart';
 import '../models/shop.dart';
 import '../services/realtime_service.dart';
+import '../widgets/voice_search_button.dart';
+import '../utils/shop_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -147,32 +149,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       if (result['success'] == true && result['shops'] is List) {
         final List<dynamic> list = result['shops'] as List<dynamic>;
-        final shops = list.map((e) => Shop(
-          id: (e['_id'] ?? e['id'] ?? '').toString(),
-          name: (e['shopName'] ?? e['name'] ?? '').toString(),
-          category: (e['category'] ?? '').toString(),
-          address: (e['address'] ?? '').toString(),
-          latitude: (e['latitude'] is num)
-              ? (e['latitude'] as num).toDouble()
-              : (e['location']?['coordinates'] is List && (e['location']['coordinates'] as List).length >= 2)
-                  ? ((e['location']['coordinates'][1] as num).toDouble())
-                  : 0.0,
-          longitude: (e['longitude'] is num)
-              ? (e['longitude'] as num).toDouble()
-              : (e['location']?['coordinates'] is List && (e['location']['coordinates'] as List).length >= 2)
-                  ? ((e['location']['coordinates'][0] as num).toDouble())
-                  : 0.0,
-          rating: (e['rating'] as num?)?.toDouble() ?? 0.0,
-          reviewCount: (e['reviewCount'] as int?) ?? (e['reviewsCount'] as int?) ?? 0,
-          distance: (e['distanceKm'] as num?)?.toDouble() ?? (e['distance'] as num?)?.toDouble() ?? 0.0,
+        final shops = list.map((e) => ShopUtils.createShopWithDistance(
+          shopData: e,
+          userLatitude: position.latitude,
+          userLongitude: position.longitude,
           offers: const [],
-          isOpen: e['isLive'] == true || e['isOpen'] == true,
-          openingHours: (e['openingHours'] ?? '').toString(),
-          phone: (e['phone'] ?? '').toString(),
-          imageUrl: e['imageUrl']?.toString(),
-          description: e['description']?.toString(),
-          amenities: const [],
-          lastUpdated: null,
         )).toList();
         setState(() {
           _nearbyShops = shops;
@@ -417,36 +398,20 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: const Color(0xFF6B7280),
                               size: isLargeTablet ? 24 : (isTablet ? 20 : 18),
                             ),
-                            suffixIcon: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  onPressed: () {
-                                    // Voice search functionality
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Voice search coming soon!')),
-                                    );
-                                  },
-                                  icon: Icon(
-                                    Icons.mic,
-                                    color: const Color(0xFF6B7280),
-                                    size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () {
-                                    // Filter functionality
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Filter options coming soon!')),
-                                    );
-                                  },
-                                  icon: Icon(
-                                    Icons.tune,
-                                    color: const Color(0xFF6B7280),
-                                    size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
-                                  ),
-                                ),
-                              ],
+                            suffixIcon: VoiceSearchButton(
+                              onVoiceResult: (result) {
+                                _searchController.text = result;
+                                // Automatically trigger search
+                                if (result.isNotEmpty) {
+                                  final navigator = Navigator.of(context);
+                                  RecentSearchService.addSearch(result);
+                                  _loadRecentSearches();
+                                  navigator.pushNamed('/search-results', arguments: {'query': result});
+                                }
+                              },
+                              iconColor: const Color(0xFF6B7280),
+                              iconSize: isLargeTablet ? 20 : (isTablet ? 18 : 16),
+                              tooltip: 'Voice search',
                             ),
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.symmetric(
@@ -1304,7 +1269,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _offersSubscription?.cancel();
     _realtimeSubscription?.cancel();
-    FeaturedOffersService().dispose();
+    // Don't dispose the singleton service as other screens might need it
     super.dispose();
   }
 } 

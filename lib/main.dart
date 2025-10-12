@@ -24,16 +24,15 @@ import 'widgets/splash_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/search_results_screen.dart';
 import 'services/realtime_service.dart';
+import 'debug/voice_search_debug.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   // Use physical device environment and set the hosted backend URL explicitly
   NetworkConfig.setEnvironment(NetworkConfig.physicalDevice);
-  NetworkConfig.setPhysicalDeviceBaseUrl('https://shopradarbackend-ob4u.onrender.com');
+  NetworkConfig.setPhysicalDeviceBaseUrl('https://shopradarbackend-production.up.railway.app');
   runApp(const ShopRadarApp());
-  // Fire-and-forget network initialization and refresh to clear any cached URLs from hot reload
-  // ignore: unawaited_futures
   NetworkConfig.refreshNetworkConfig();
 }
 
@@ -73,7 +72,6 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
       FlutterNativeSplash.remove();
       
       // Initialize realtime service in background
-      // ignore: unawaited_futures
       RealtimeService().initialize();
 
       // Show splash screen before onboarding for 2 more seconds
@@ -93,7 +91,6 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('🔍 Building app - _isInitializing: $_isInitializing, _showSplashBeforeOnboarding: $_showSplashBeforeOnboarding, _showOnboarding: $_showOnboarding');
     
     if (_isInitializing || _showSplashBeforeOnboarding) {
       debugPrint('📱 Showing animated splash screen');
@@ -194,6 +191,7 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
         },
         '/stores': (context) => const StoresScreen(),
         '/favorites': (context) => const FavoritesScreen(),
+        '/voice-debug': (context) => const VoiceSearchDebugScreen(),
 
       },
     );

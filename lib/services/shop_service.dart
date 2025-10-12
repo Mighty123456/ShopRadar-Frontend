@@ -269,15 +269,12 @@ class ShopService {
       final Map<String, dynamic> requestData = {
         'product': <String, dynamic>{
           'name': productData['name'],
-          'brand': productData['brand'],
-          'model': productData['model'],
           'description': productData['description'],
-          'tags': productData['tags'],
           'category': productData['category'],
+          'brand': productData['brand'],
+          'itemName': productData['itemName'],
           'price': productData['price'],
           'stock': productData['stock'],
-          'unitType': productData['unitType'],
-          'availabilityStatus': productData['availabilityStatus'],
         },
         'offer': offerData,
       };

@@ -149,8 +149,6 @@ class NotificationService {
       return 0;
     }
   }
-
-  // Removed mock notification seeding
 }
 
 class AppNotification {

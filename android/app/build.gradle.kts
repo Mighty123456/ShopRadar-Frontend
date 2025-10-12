@@ -14,10 +14,14 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // Suppress obsolete Java version warnings
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
+        // Disable incremental compilation to avoid cache issues
+        freeCompilerArgs += listOf("-Xno-incremental")
     }
 
     defaultConfig {
@@ -46,4 +50,5 @@ flutter {
 
 dependencies {
     implementation("com.google.android.gms:play-services-auth:20.7.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

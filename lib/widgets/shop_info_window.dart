@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/shop.dart';
 
 class ShopInfoWindow extends StatelessWidget {
@@ -14,6 +15,40 @@ class ShopInfoWindow extends StatelessWidget {
     required this.onDirections,
     required this.onViewDetails,
   });
+
+  Future<void> _makePhoneCall(BuildContext context) async {
+    final phoneNumber = shop.phone;
+    if (phoneNumber.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Phone number not available')),
+        );
+      }
+      return;
+    }
+
+    // Clean the phone number (remove spaces, dashes, etc.)
+    final cleanPhoneNumber = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri phoneUri = Uri(scheme: 'tel', path: cleanPhoneNumber);
+    
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cannot make phone calls on this device')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error making phone call: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -203,7 +238,23 @@ class ShopInfoWindow extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _makePhoneCall(context),
+                        icon: const Icon(Icons.phone, size: 18),
+                        label: const Text('Call'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF2979FF),
+                          side: const BorderSide(color: Color(0xFF2979FF)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: onViewDetails,

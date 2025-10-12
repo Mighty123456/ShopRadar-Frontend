@@ -4,13 +4,16 @@ import 'package:latlong2/latlong.dart';
 
 class RoutingService {
   // Use free OSRM public server (no API key). Note: best-effort service with rate limits.
-  static const String _baseUrl = 'https://router.project-osrm.org/route/v1/driving';
+  // Profiles: driving, foot, cycling. Motorcycle maps to driving.
+  static const String _base = 'https://router.project-osrm.org/route/v1';
 
   /// Fetch route using OSRM with GeoJSON geometry.
+  /// mode: 'driving' | 'foot' | 'cycling' | 'motorcycle' (maps to driving)
   static Future<({List<LatLng> points, double distanceMeters, double durationSeconds})?>
-      getRoute({required LatLng start, required LatLng end}) async {
+      getRoute({required LatLng start, required LatLng end, String mode = 'driving'}) async {
+    final String profile = (mode == 'motorcycle') ? 'driving' : (mode == 'foot' || mode == 'cycling' ? mode : 'driving');
     final String coords = '${start.longitude},${start.latitude};${end.longitude},${end.latitude}';
-    final Uri uri = Uri.parse('$_baseUrl/$coords?overview=full&geometries=geojson');
+    final Uri uri = Uri.parse('$_base/$profile/$coords?overview=full&geometries=geojson');
 
     final http.Response resp = await http.get(uri, headers: {
       'Accept': 'application/json',
@@ -45,5 +48,3 @@ class RoutingService {
     return (points: points, distanceMeters: distance, durationSeconds: duration);
   }
 }
-
-

@@ -46,10 +46,9 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
   final List<Marker> _routeLabels = [];
   double _lastRouteKm = 0.0;
   int _lastRouteMin = 0;
+  String _routeMode = 'driving'; // 'driving' | 'foot' | 'cycling' (motorcycle -> driving)
   bool _isLoading = true;
   Timer? _routeUpdateTimer;
-  // Removed overlay usage; keeping UI minimal
-  // ignore: unused_field
   bool _showSearchOverlay = false;
   
   latlng.LatLng? _currentLocation;
@@ -61,12 +60,8 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
   bool _followUser = true;
   late final AnimationController _pulseController;
   late final Animation<double> _pulse;
-  
-  // Google-specific fields removed for WebView implementation
-  
-  
-
-  // Map configuration
+  late final AnimationController _recommendController;
+  late final Animation<double> _recommendScale;
   static final latlng.LatLng _defaultCenter = latlng.LatLng(MapConfig.defaultLatitude, MapConfig.defaultLongitude);
 
   @override
@@ -75,13 +70,10 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
     _pulse = Tween<double>(begin: 0.9, end: 1.2).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
     _pulseController.repeat(reverse: true);
+    _recommendController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    _recommendScale = Tween<double>(begin: 0.95, end: 1.08).animate(CurvedAnimation(parent: _recommendController, curve: Curves.easeInOut));
+    _recommendController.repeat(reverse: true);
     _initializeMap();
-    if (widget.searchQuery != null) {
-      // no-op: search overlay removed
-    }
-    if (widget.category != null) {
-      // no-op: category UI removed
-    }
   }
 
   @override
@@ -89,6 +81,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     _positionSub?.cancel();
     _routeUpdateTimer?.cancel();
     _pulseController.dispose();
+    _recommendController.dispose();
     super.dispose();
   }
 
@@ -137,6 +130,13 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
         if (widget.routeToShop != null && _currentLocation != null) {
           _selectedShop = widget.routeToShop!;
           _drawRouteTo(widget.routeToShop!);
+        }
+        // If no specific route is requested, emphasize the recommended shop (highest visitPriorityScore)
+        if (widget.routeToShop == null) {
+          final Shop best = _shops.reduce((a, b) => a.visitPriorityScore >= b.visitPriorityScore ? a : b);
+          try {
+            _mapController.move(latlng.LatLng(best.latitude, best.longitude), MapConfig.defaultZoom);
+          } catch (_) {}
         }
         // If asked to draw routes for all, draw to up to 5 closest by distance
         if (widget.drawRoutesForAll && _currentLocation != null) {
@@ -204,62 +204,26 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       if (s.rating < _minRating) return false;
       return true;
     });
-    for (final shop in source) {
-      final double discount = shop.offers.isNotEmpty ? shop.offers.first.discount : 0.0;
-      final double rating = shop.rating;
-      Color pinColor = const Color(0xFF2979FF); // default blue
-      if (rating >= 4.5 || discount >= 30) {
-        pinColor = const Color(0xFFFFB300); // amber for best
-      } else if (rating >= 4.0 || discount >= 10) {
-        pinColor = const Color(0xFF2E7D32); // green for good
-      }
+    // Determine recommended shop (highest visitPriorityScore)
+    Shop? recommended;
+    if (source.isNotEmpty) {
+      recommended = source.reduce((a, b) => a.visitPriorityScore >= b.visitPriorityScore ? a : b);
+    }
+    // Build markers: non-recommended first, recommended last (so it renders on top)
+    final List<Shop> ordered = [
+      ...source.where((s) => s != recommended),
+      if (recommended != null) recommended,
+    ];
+    for (final shop in ordered) {
+      final bool isRecommended = shop == recommended;
       _markers.add(
         Marker(
           point: latlng.LatLng(shop.latitude, shop.longitude),
-          width: 56,
-          height: 64,
+          width: 64,
+          height: 74,
           child: GestureDetector(
             onTap: () => _onMarkerTapped(shop),
-            child: Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                Positioned(
-                  top: 8,
-            child: Container(
-                    width: 44,
-                    height: 44,
-              decoration: BoxDecoration(
-                      color: pinColor,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                      border: Border.all(color: Colors.white, width: 3),
-                    ),
-                    child: const Icon(Icons.store, color: Colors.white, size: 20),
-                  ),
-                ),
-                Positioned(
-                  top: 0,
-                  right: 4,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      rating.toStringAsFixed(1),
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            child: _buildShopMarker(shop, isRecommended: isRecommended),
           ),
         ),
       );
@@ -267,9 +231,133 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     if (mounted) setState(() {});
   }
 
-  
+  int _bestOfferPercent(Shop shop) {
+    if (shop.offers.isEmpty) return 0;
+    int best = 0;
+    for (final o in shop.offers) {
+      best = math.max(best, o.discount.round());
+    }
+    return best;
+  }
 
-  // For category-based styling we style in builder above; no BitmapDescriptor in flutter_map
+  Widget _buildShopMarker(Shop shop, {required bool isRecommended}) {
+    final int offer = _bestOfferPercent(shop);
+    final double rating = shop.rating;
+    Color pinColor = const Color(0xFF2979FF);
+    if (isRecommended) {
+      pinColor = const Color(0xFFFF6B35);
+    } else if (rating >= 4.5 || offer >= 30) {
+      pinColor = const Color(0xFFFFB300);
+    } else if (rating >= 4.0 || offer >= 10) {
+      pinColor = const Color(0xFF2E7D32);
+    }
+
+    final Widget pin = Stack(
+      alignment: Alignment.center,
+      children: [
+        // subtle shadow/glow
+        if (isRecommended)
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: pinColor.withValues(alpha: 0.35), blurRadius: 16, spreadRadius: 6),
+              ],
+            ),
+          ),
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: pinColor,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 3)),
+            ],
+          ),
+          child: Center(
+            child: offer > 0
+                ? Text(
+                    '$offer%',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+                  )
+                : const Icon(Icons.store, color: Colors.white, size: 20),
+          ),
+        ),
+        // small label
+        Positioned(
+          top: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isRecommended ? const Color(0xFFFF6B35) : Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              isRecommended ? 'TOP' : rating.toStringAsFixed(1),
+              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (isRecommended) {
+      return ScaleTransition(scale: _recommendScale, child: pin);
+    }
+    return pin;
+  }
+
+  Widget _buildModeChip({required IconData icon, required String label, required String mode}) {
+    final bool selected = _routeMode == (mode == 'motorcycle' ? 'driving' : mode);
+    return Tooltip(
+      message: selected ? '$label (selected)' : 'Route by $label',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _routeMode = mode;
+            });
+            if (_selectedShop != null) {
+              _drawRouteTo(_selectedShop!);
+            } else if (_customDestination != null) {
+              _drawRouteToPoint(_customDestination!);
+            }
+          },
+          borderRadius: BorderRadius.circular(10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeInOut,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFF2979FF).withValues(alpha: 0.12) : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: selected ? const Color(0xFF2979FF) : const Color(0xFFE5E7EB)),
+              boxShadow: selected
+                  ? [BoxShadow(color: const Color(0xFF2979FF).withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 2))]
+                  : [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 4, offset: const Offset(0, 1))],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  scale: selected ? 1.1 : 1.0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(icon, size: 16, color: selected ? const Color(0xFF2979FF) : const Color(0xFF6B7280)),
+                ),
+                const SizedBox(width: 6),
+                Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: selected ? const Color(0xFF2979FF) : const Color(0xFF6B7280))),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   void _onMarkerTapped(Shop shop) {
     if (mounted) {
@@ -279,8 +367,6 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       });
     }
   }
-
-  
 
   void _onMyLocationPressed() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -304,8 +390,6 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     }
   }
 
-  
-
   void _drawRouteTo(Shop shop) {
     _routeUpdateTimer?.cancel();
     _routeUpdateTimer = Timer(const Duration(milliseconds: 500), () {
@@ -320,7 +404,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     final start = _currentLocation!;
     final end = latlng.LatLng(shop.latitude, shop.longitude);
     // Try ORS first; fallback to straight line
-    RoutingService.getRoute(start: start, end: end).then((route) {
+    RoutingService.getRoute(start: start, end: end, mode: _routeMode).then((route) {
       if (!mounted) return;
       if (route != null && route.points.length >= 2) {
         setState(() {
@@ -373,7 +457,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     if (_currentLocation == null) return;
     final start = _currentLocation!;
     final end = point;
-    RoutingService.getRoute(start: start, end: end).then((route) {
+    RoutingService.getRoute(start: start, end: end, mode: _routeMode).then((route) {
       if (!mounted) return;
       if (route != null && route.points.length >= 2) {
         setState(() {
@@ -878,7 +962,6 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
           ),
           
           // Search Overlay
-          // Search Overlay - simple inline search dialog
           if (_showSearchOverlay)
             Positioned.fill(
               child: GestureDetector(
@@ -901,21 +984,16 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
               ),
             ),
           
-          
-          // Map Controls - only show my location button
-          if (true)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + (isTablet ? 20 : 16),
-              right: isTablet ? 20 : 16,
-              child: MapControls(
-                onSearchPressed: _showSearchDialog,
-                onMyLocationPressed: _onMyLocationPressed,
-                onFilterPressed: _showFilterSheet,
-              ),
-            )
-          ,
-
-          // Directions button removed per request; use long-press to set destination and draw route.
+          // Map Controls
+          Positioned(
+            top: MediaQuery.of(context).padding.top + (isTablet ? 20 : 16),
+            right: isTablet ? 20 : 16,
+            child: MapControls(
+              onSearchPressed: _showSearchDialog,
+              onMyLocationPressed: _onMyLocationPressed,
+              onFilterPressed: _showFilterSheet,
+            ),
+          ),
 
           // Route info pill
           if (_routePolyline.length >= 2)
@@ -939,26 +1017,52 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
                         children: [
                           const Icon(Icons.directions, color: Color(0xFF2979FF), size: 18),
                           const SizedBox(width: 8),
-                          Text('${_formatDistanceKm(_lastRouteKm)} • ${_lastRouteMin > 0 ? '~$_lastRouteMin min' : 'ETA n/a'}',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          Flexible(
+                            child: Text(
+                              '${_formatDistanceKm(_lastRouteKm)} • ${_lastRouteMin > 0 ? '~$_lastRouteMin min' : 'ETA n/a'}',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.center_focus_strong),
-                            tooltip: 'Recenter route',
-                            onPressed: _fitRouteToView,
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.clear),
-                            tooltip: 'Clear route',
-                            onPressed: () {
-                              setState(() {
-                                _routePolyline.clear();
-                                _routeArrows.clear();
-                                _customDestination = null;
-                                _selectedShop = null;
-                              });
-                            },
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  // Mode chips
+                                  _buildModeChip(icon: Icons.directions_walk, label: 'Walk', mode: 'foot'),
+                                  const SizedBox(width: 6),
+                                  _buildModeChip(icon: Icons.directions_car, label: 'Car', mode: 'driving'),
+                                  const SizedBox(width: 6),
+                                  _buildModeChip(icon: Icons.motorcycle, label: 'Moto', mode: 'motorcycle'),
+                                  const SizedBox(width: 6),
+                                  Tooltip(
+                                    message: 'Recenter route',
+                                    child: IconButton(
+                                      icon: const Icon(Icons.center_focus_strong),
+                                      tooltip: 'Recenter route',
+                                      onPressed: _fitRouteToView,
+                                    ),
+                                  ),
+                                  Tooltip(
+                                    message: 'Clear route',
+                                    child: IconButton(
+                                      icon: const Icon(Icons.clear),
+                                      tooltip: 'Clear route',
+                                      onPressed: () {
+                                        setState(() {
+                                          _routePolyline.clear();
+                                          _routeArrows.clear();
+                                          _customDestination = null;
+                                          _selectedShop = null;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -967,12 +1071,6 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
                 ],
               ),
             ),
-          
-          // Removed shop details - no shop interactions in map view
-          
-
-          // Removed recommendation banner - recommendations moved to stores screen
-          
           
           // Loading Indicator
           if (_isLoading)

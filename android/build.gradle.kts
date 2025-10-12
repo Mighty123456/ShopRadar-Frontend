@@ -13,6 +13,21 @@ allprojects {
         google()
         mavenCentral()
     }
+    
+    // Configure Kotlin compiler options to avoid incremental cache issues
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+        kotlinOptions {
+            // Disable incremental compilation
+            freeCompilerArgs = freeCompilerArgs + "-Xno-incremental"
+            // Suppress warnings about obsolete options
+            freeCompilerArgs = freeCompilerArgs + "-Xlint:-options"
+        }
+    }
+    
+    // Configure Java compiler options to suppress obsolete version warnings
+    tasks.withType<JavaCompile> {
+        options.compilerArgs.addAll(listOf("-Xlint:-options"))
+    }
 }
 
 val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()

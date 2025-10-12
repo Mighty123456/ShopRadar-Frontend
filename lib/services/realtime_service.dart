@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geocoding;
 
@@ -12,8 +12,8 @@ class RealtimeService {
   factory RealtimeService() => _instance;
   RealtimeService._internal();
 
-  IO.Socket? _socket;
-  StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
+  io.Socket? _socket;
+  final StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
 
   Stream<Map<String, dynamic>> get events => _eventController.stream;
 
@@ -25,9 +25,9 @@ class RealtimeService {
       final endpoint = '$wsOrigin/public';
 
       _socket?.dispose();
-      _socket = IO.io(
+      _socket = io.io(
         endpoint,
-        IO.OptionBuilder()
+        io.OptionBuilder()
             .setTransports(['websocket'])
             .disableAutoConnect()
             .enableForceNew()
@@ -95,7 +95,11 @@ class RealtimeService {
       if (permission == LocationPermission.denied) {
         await Geolocator.requestPermission();
       }
-      final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+        ),
+      );
       final placemarks = await geocoding.placemarkFromCoordinates(position.latitude, position.longitude);
       final deviceCity = placemarks.isNotEmpty ? placemarks.first.locality?.toLowerCase().trim() : null;
 
