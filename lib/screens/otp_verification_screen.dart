@@ -171,6 +171,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       context,
       message: message,
       type: isSuccess ? MessageType.success : MessageType.error,
+      isOTPNotification: isSuccess, // Use OTP notification style for success messages
       title: isSuccess ? 'OTP Sent!' : 'Verification Failed',
     );
   }

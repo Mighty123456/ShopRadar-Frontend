@@ -31,7 +31,7 @@ Future<void> main() async {
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   // Use physical device environment and set the hosted backend URL explicitly
   NetworkConfig.setEnvironment(NetworkConfig.physicalDevice);
-  NetworkConfig.setPhysicalDeviceBaseUrl('https://shopradarbackend-production.up.railway.app');
+  NetworkConfig.setPhysicalDeviceBaseUrl('https://shop-radar-backend.vercel.app');
   runApp(const ShopRadarApp());
   NetworkConfig.refreshNetworkConfig();
 }

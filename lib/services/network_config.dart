@@ -12,14 +12,15 @@ class NetworkConfig {
   static Map<String, String> baseUrls = {
     // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
     emulator: 'http://10.0.2.2:3000',
-    // Use localhost for physical devices temporarily while Render.com is down
-    physicalDevice: 'https://shopradarbackend-production.up.railway.app',
+    // Use Vercel deployment for physical devices
+    physicalDevice: 'https://shop-radar-backend.vercel.app',
     // Use localhost for simulator (iOS simulator can access localhost directly)
     simulator: 'http://localhost:3000',
   };
 
   // Fallback URLs for when the primary hosted service is down
   static List<String> fallbackUrls = [
+    'https://shop-radar-backend.vercel.app',  // Vercel production fallback
     'http://localhost:3000',  // Local development fallback
     'http://10.0.2.2:3000',  // Emulator fallback
   ];
@@ -27,8 +28,8 @@ class NetworkConfig {
   static Map<String, String> webSocketUrls = {
     // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
     emulator: 'ws://10.0.2.2:3000',
-    // Use hosted API on physical devices so it works off your LAN
-    physicalDevice: 'wss://shopradarbackend-production.up.railway.app',
+    // Use Vercel deployment for physical devices
+    physicalDevice: 'wss://shop-radar-backend.vercel.app',
     // Use localhost for simulator (iOS simulator can access localhost directly)
     simulator: 'ws://localhost:3000',
   };

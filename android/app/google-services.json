@@ -1,33 +1,33 @@
 {
   "project_info": {
-    "project_number": "YOUR_PROJECT_NUMBER",
-    "project_id": "your-project-id",
-    "storage_bucket": "your-project-id.appspot.com"
+    "project_number": "332361076520",
+    "project_id": "ninth-history-459612-m7",
+    "storage_bucket": "ninth-history-459612-m7.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:YOUR_PROJECT_NUMBER:android:YOUR_APP_ID",
+        "mobilesdk_app_id": "1:332361076520:android:332361076520",
         "android_client_info": {
           "package_name": "com.example.frontend_flutter"
         }
       },
       "oauth_client": [
         {
-          "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+          "client_id": "332361076520-us36q8t8n9aev08jqap6n448m8j8jk0p.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "YOUR_API_KEY"
+          "current_key": "AQ.Ab8RN6Ioc0-K_uBO4lAQPDCLgpv46b9ivUe710vz1L-jAgnkXA"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com",
+              "client_id": "332361076520-kpfv6e99445bfni26o7vfkqip0gcep23.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

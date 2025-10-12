@@ -249,21 +249,21 @@ class _AnimatedMessageDialogState extends State<AnimatedMessageDialog>
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFF3B82F6),
-                  const Color(0xFF8B5CF6),
+                  const Color(0xFF10B981), // Success green
+                  const Color(0xFF059669), // Darker success green
                 ],
                 stops: const [0.0, 1.0],
               ),
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
+                  color: const Color(0xFF10B981).withValues(alpha: 0.25),
                   blurRadius: 24,
                   spreadRadius: 0,
                   offset: const Offset(0, 12),
                 ),
                 BoxShadow(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                  color: const Color(0xFF059669).withValues(alpha: 0.15),
                   blurRadius: 40,
                   spreadRadius: 0,
                   offset: const Offset(0, 20),
@@ -393,7 +393,7 @@ class _AnimatedMessageDialogState extends State<AnimatedMessageDialog>
                       child: _buildActionButton(
                         'Got it!',
                         Colors.white,
-                        const Color(0xFF3B82F6),
+                        const Color(0xFF10B981),
                         _dismiss,
                         isSmallScreen,
                       ),

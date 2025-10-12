@@ -65,7 +65,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       context,
       message: message,
       type: isSuccess ? MessageType.success : MessageType.error,
-      isOTPNotification: isSuccess,
+      isOTPNotification: isSuccess, // Use OTP notification style for success messages
       title: isSuccess ? 'Reset Code Sent!' : 'Failed to Send Code',
     );
   }
