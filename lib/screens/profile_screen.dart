@@ -12,6 +12,7 @@ import '../widgets/custom_button.dart';
 import '../widgets/animated_message_dialog.dart';
 import '../services/profile_service.dart';
 import '../services/auth_service.dart';
+import 'package:flutter/foundation.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -687,12 +688,13 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
       // Generate signature
       final signature = _generateSignature(params);
       
-      // Debug: Print signature details
-      print('🔍 Signature Debug:');
-      print('  - Params: $params');
-      print('  - Query String: ${params.entries.map((e) => '${e.key}=${e.value}').join('&')}');
-      print('  - String to sign: ${params.entries.map((e) => '${e.key}=${e.value}').join('&')}${CloudinaryConfig.apiSecret}');
-      print('  - Generated signature: $signature');
+      if (kDebugMode) {
+        print('🔍 Signature Debug:');
+        print('  - Params: $params');
+        print('  - Query String: ${params.entries.map((e) => '${e.key}=${e.value}').join('&')}');
+        print('  - String to sign: ${params.entries.map((e) => '${e.key}=${e.value}').join('&')}${CloudinaryConfig.apiSecret}');
+        print('  - Generated signature: $signature');
+      }
       
       final requestBody = {
         'file': 'data:image/jpeg;base64,$base64Image',

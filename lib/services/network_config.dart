@@ -13,7 +13,7 @@ class NetworkConfig {
     // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
     emulator: 'http://10.0.2.2:3000',
     // Use Vercel deployment for physical devices
-    physicalDevice: 'https://shopradar-backend-8myp.vercel.app',
+    physicalDevice: 'https://shopradarbackend-ob4u.onrender.com/',
     // Use localhost for simulator (iOS simulator can access localhost directly)
     simulator: 'http://localhost:3000',
   };
@@ -22,14 +22,14 @@ class NetworkConfig {
   static List<String> fallbackUrls = [
     'http://localhost:3000',  // Local development fallback
     'http://10.0.2.2:3000',  // Emulator fallback
-    'https://shopradar-backend-8myp.vercel.app',  // Vercel production fallback
+    'https://shopradarbackend-ob4u.onrender.com/',  // Vercel production fallback
   ];
 
   static Map<String, String> webSocketUrls = {
     // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
     emulator: 'ws://10.0.2.2:3000',
     // Use Vercel deployment for physical devices
-    physicalDevice: 'wss://shopradar-backend-8myp.vercel.app',
+    physicalDevice: 'wss://shopradarbackend-ob4u.onrender.com',
     // Use localhost for simulator (iOS simulator can access localhost directly)
     simulator: 'ws://localhost:3000',
   };

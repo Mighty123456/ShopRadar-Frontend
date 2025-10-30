@@ -46,100 +46,146 @@ class _StoresScreenState extends State<StoresScreen> {
     _loadStores();
   }
 
-  Future<void> _loadStores() async {
+  Future<void> _loadStores({String? overrideCategory}) async {
     setState(() {
       _isLoading = true;
     });
 
+    final categoryToLoad = overrideCategory ?? _selectedCategory;
     try {
-      // Get user location for distance calculation
-      Position? position;
-      try {
-        position = await LocationService.getCurrentLocation();
-      } catch (_) {
-        // Use default location if current location fails
-        position = null;
-      }
-
-      // Load nearby shops
-      final result = await ShopService.getNearbyShops(
-        latitude: position?.latitude ?? 28.6139, // Default to Delhi
-        longitude: position?.longitude ?? 77.2090,
-        radius: 50000, // 50km in meters for stores screen
-      );
-      
-      final shops = (result['shops'] as List)
-          .map((shop) {
-            try {
-              final shopObj = Shop.fromJson(shop);
-              
-              // If distance is 0 or not provided, calculate it client-side
-              if (shopObj.distance == 0.0 && position != null) {
-                final calculatedDistance = _calculateDistance(
-                  position.latitude, 
-                  position.longitude, 
-                  shopObj.latitude, 
-                  shopObj.longitude
-                );
-                // Create a new shop object with calculated distance
+      if (categoryToLoad != 'All') {
+        // Fetch shops by category AND 5km nearby, using current location
+        Position? position;
+        try {
+          position = await LocationService.getCurrentLocation();
+        } catch (_) {
+          position = null;
+        }
+        final lat = position?.latitude ?? 28.6139;
+        final lng = position?.longitude ?? 77.2090;
+        final result = await ShopService.getNearbyShopsByCategory(
+          latitude: lat,
+          longitude: lng,
+          category: categoryToLoad,
+          radius: 5000,
+        );
+        final shops = (result['shops'] as List)
+            .map((shop) {
+              try {
+                final shopObj = Shop.fromJson(shop);
+                return shopObj;
+              } catch (e) {
+                debugPrint('Error parsing shop data: $e');
+                debugPrint('Shop data: $shop');
                 return Shop(
-                  id: shopObj.id,
-                  name: shopObj.name,
-                  category: shopObj.category,
-                  address: shopObj.address,
-                  latitude: shopObj.latitude,
-                  longitude: shopObj.longitude,
-                  rating: shopObj.rating,
-                  reviewCount: shopObj.reviewCount,
-                  distance: calculatedDistance,
-                  offers: shopObj.offers,
-                  isOpen: shopObj.isOpen,
-                  openingHours: shopObj.openingHours,
-                  phone: shopObj.phone,
-                  imageUrl: shopObj.imageUrl,
-                  description: shopObj.description,
-                  amenities: shopObj.amenities,
-                  lastUpdated: shopObj.lastUpdated,
+                  id: (shop['_id'] ?? shop['id'] ?? 'unknown').toString(),
+                  name: (shop['shopName'] ?? shop['name'] ?? 'Unknown Shop').toString(),
+                  category: (shop['category'] ?? 'Other').toString(),
+                  address: (shop['address'] ?? 'Address not available').toString(),
+                  latitude: (shop['latitude'] ?? 0.0).toDouble(),
+                  longitude: (shop['longitude'] ?? 0.0).toDouble(),
+                  rating: (shop['rating'] ?? 0.0).toDouble(),
+                  reviewCount: (shop['reviewCount'] ?? 0) as int,
+                  distance: (shop['distanceKm'] ?? shop['distance'] ?? 0.0).toDouble(),
+                  offers: const [],
+                  isOpen: (shop['isOpen'] ?? shop['isLive'] ?? false) as bool,
+                  openingHours: (shop['openingHours'] ?? '').toString(),
+                  phone: (shop['phone'] ?? '').toString(),
+                  imageUrl: shop['imageUrl']?.toString(),
+                  description: shop['description']?.toString(),
+                  amenities: const [],
+                  lastUpdated: null,
                 );
               }
-              
-              return shopObj;
-            } catch (e) {
-              debugPrint('Error parsing shop data: $e');
-              debugPrint('Shop data: $shop');
-              // Return a default shop object to prevent the entire list from failing
-              return Shop(
-                id: (shop['_id'] ?? shop['id'] ?? 'unknown').toString(),
-                name: (shop['shopName'] ?? shop['name'] ?? 'Unknown Shop').toString(),
-                category: (shop['category'] ?? 'Other').toString(),
-                address: (shop['address'] ?? 'Address not available').toString(),
-                latitude: (shop['latitude'] ?? 0.0).toDouble(),
-                longitude: (shop['longitude'] ?? 0.0).toDouble(),
-                rating: (shop['rating'] ?? 0.0).toDouble(),
-                reviewCount: (shop['reviewCount'] ?? 0) as int,
-                distance: (shop['distanceKm'] ?? shop['distance'] ?? 0.0).toDouble(),
-                offers: const [],
-                isOpen: (shop['isOpen'] ?? shop['isLive'] ?? false) as bool,
-                openingHours: (shop['openingHours'] ?? '').toString(),
-                phone: (shop['phone'] ?? '').toString(),
-                imageUrl: shop['imageUrl']?.toString(),
-                description: shop['description']?.toString(),
-                amenities: const [],
-                lastUpdated: null,
-              );
-            }
-          })
-          .toList();
-
-      if (mounted) {
-        debugPrint('Stores screen: Loaded ${shops.length} shops');
-        debugPrint('Shops data: ${shops.map((s) => '${s.name} (${s.distance.toStringAsFixed(2)}km)').join(', ')}');
-        setState(() {
-          _allShops = shops;
-          _filteredShops = shops;
-          _isLoading = false;
-        });
-        _applyFilters();
+            })
+            .toList();
+        if (mounted) {
+          setState(() {
+            _allShops = shops;
+            _filteredShops = shops;
+            _isLoading = false;
+          });
+          _applyFilters();
+        }
+      } else {
+        // Default: load all or nearby as before
+        Position? position;
+        try {
+          position = await LocationService.getCurrentLocation();
+        } catch (_) {
+          position = null;
+        }
+        final result = await ShopService.getNearbyShops(
+          latitude: position?.latitude ?? 28.6139, // Default to Delhi
+          longitude: position?.longitude ?? 77.2090,
+          radius: 50000, // 50km in meters
+        );
+        final shops = (result['shops'] as List)
+            .map((shop) {
+              try {
+                final shopObj = Shop.fromJson(shop);
+                // If distance is 0 or not provided, calculate it client-side
+                if (shopObj.distance == 0.0 && position != null) {
+                  final calculatedDistance = _calculateDistance(
+                    position.latitude,
+                    position.longitude,
+                    shopObj.latitude,
+                    shopObj.longitude,
+                  );
+                  return Shop(
+                    id: shopObj.id,
+                    name: shopObj.name,
+                    category: shopObj.category,
+                    address: shopObj.address,
+                    latitude: shopObj.latitude,
+                    longitude: shopObj.longitude,
+                    rating: shopObj.rating,
+                    reviewCount: shopObj.reviewCount,
+                    distance: calculatedDistance,
+                    offers: shopObj.offers,
+                    isOpen: shopObj.isOpen,
+                    openingHours: shopObj.openingHours,
+                    phone: shopObj.phone,
+                    imageUrl: shopObj.imageUrl,
+                    description: shopObj.description,
+                    amenities: shopObj.amenities,
+                    lastUpdated: shopObj.lastUpdated,
+                  );
+                }
+                return shopObj;
+              } catch (e) {
+                debugPrint('Error parsing shop data: $e');
+                debugPrint('Shop data: $shop');
+                return Shop(
+                  id: (shop['_id'] ?? shop['id'] ?? 'unknown').toString(),
+                  name: (shop['shopName'] ?? shop['name'] ?? 'Unknown Shop').toString(),
+                  category: (shop['category'] ?? 'Other').toString(),
+                  address: (shop['address'] ?? 'Address not available').toString(),
+                  latitude: (shop['latitude'] ?? 0.0).toDouble(),
+                  longitude: (shop['longitude'] ?? 0.0).toDouble(),
+                  rating: (shop['rating'] ?? 0.0).toDouble(),
+                  reviewCount: (shop['reviewCount'] ?? 0) as int,
+                  distance: (shop['distanceKm'] ?? shop['distance'] ?? 0.0).toDouble(),
+                  offers: const [],
+                  isOpen: (shop['isOpen'] ?? shop['isLive'] ?? false) as bool,
+                  openingHours: (shop['openingHours'] ?? '').toString(),
+                  phone: (shop['phone'] ?? '').toString(),
+                  imageUrl: shop['imageUrl']?.toString(),
+                  description: shop['description']?.toString(),
+                  amenities: const [],
+                  lastUpdated: null,
+                );
+              }
+            })
+            .toList();
+        if (mounted) {
+          setState(() {
+            _allShops = shops;
+            _filteredShops = shops;
+            _isLoading = false;
+          });
+          _applyFilters();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -684,12 +730,12 @@ class _StoresScreenState extends State<StoresScreen> {
                   children: _categories.map((category) => ListTile(
                     title: Text(category),
                     trailing: _selectedCategory == category ? const Icon(Icons.check, color: Color(0xFF2979FF)) : null,
-                    onTap: () {
+                    onTap: () async {
                       setState(() {
                         _selectedCategory = category;
                       });
-                      _applyFilters();
                       Navigator.pop(context);
+                      await _loadStores(overrideCategory: category);
                     },
                   )).toList(),
                 ),

@@ -258,6 +258,52 @@ class ShopService {
     }
   }
 
+  // Get nearby shops by category (for customers)
+  static Future<Map<String, dynamic>> getNearbyShopsByCategory({
+    required double latitude,
+    required double longitude,
+    required String category,
+    int radius = 5000,
+    int page = 1,
+    int limit = 50,
+  }) async {
+    try {
+      debugPrint('Fetching nearby shops (by category: $category, lat: $latitude, lng: $longitude, radius: $radius)');
+      final categoryParam = Uri.encodeComponent(category);
+      final response = await ApiService.get(
+        '/api/shops/nearby?latitude=$latitude&longitude=$longitude&radius=$radius&category=$categoryParam&page=$page&limit=$limit',
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('Request timed out', const Duration(seconds: 30));
+        },
+      );
+
+      debugPrint('Get nearby shops by category response status: ${response.statusCode}');
+      debugPrint('Get nearby shops by category response body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'shops': data['shops'],
+          'message': 'Nearby shops by category retrieved successfully',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to fetch nearby shops by category',
+        };
+      }
+    } catch (e) {
+      debugPrint('Get nearby shops by category error: $e');
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
+      };
+    }
+  }
+
   // Create product with optional offer (unified endpoint)
   static Future<Map<String, dynamic>> createProductWithOffer({
     required Map<String, dynamic> productData,
@@ -877,6 +923,50 @@ class ShopService {
       return {
         'success': false,
         'message': 'Error toggling offer status: $e',
+      };
+    }
+  }
+
+  // Get shops by category (for customers)
+  static Future<Map<String, dynamic>> getShopsByCategory({
+    required String category,
+    int page = 1,
+    int limit = 50,
+  }) async {
+    try {
+      debugPrint('Fetching shops by category: $category');
+      final categoryParam = Uri.encodeComponent(category);
+      final response = await ApiService.get(
+        '/api/shops?category=$categoryParam&page=$page&limit=$limit',
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('Request timed out', const Duration(seconds: 30));
+        },
+      );
+
+      debugPrint('Get shops by category response status: ${response.statusCode}');
+      debugPrint('Get shops by category response body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'shops': data['data']['shops'],
+          'total': data['data']['total'],
+          'message': 'Shops retrieved successfully',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to fetch shops by category',
+        };
+      }
+    } catch (e) {
+      debugPrint('Get shops by category error: $e');
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
       };
     }
   }
