@@ -191,7 +191,7 @@ class FeaturedOffersService {
   Future<List<FeaturedOffer>> fetchFeaturedOffers({
     double? latitude,
     double? longitude,
-    double radius = 10000,
+    double radius = 8000, // 8km radius for featured offers
     int limit = 10,
   }) async {
     try {

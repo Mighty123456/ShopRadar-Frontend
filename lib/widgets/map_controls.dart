@@ -4,12 +4,18 @@ class MapControls extends StatelessWidget {
   final VoidCallback onSearchPressed;
   final VoidCallback onMyLocationPressed;
   final VoidCallback onFilterPressed;
+  final VoidCallback? onRecenterPressed;
+  final bool showRecenterButton;
+  final bool isFollowingUser;
 
   const MapControls({
     super.key,
     required this.onSearchPressed,
     required this.onMyLocationPressed,
     required this.onFilterPressed,
+    this.onRecenterPressed,
+    this.showRecenterButton = false,
+    this.isFollowingUser = false,
   });
 
   @override
@@ -34,6 +40,19 @@ class MapControls extends StatelessWidget {
         
         const SizedBox(height: 8),
         
+        // Recenter button (only show when not following user)
+        if (showRecenterButton && !isFollowingUser)
+          _buildControlButton(
+            icon: Icons.center_focus_strong,
+            onPressed: onRecenterPressed ?? () {},
+            tooltip: 'Recenter on my location',
+            backgroundColor: const Color(0xFF2979FF),
+            iconColor: Colors.white,
+          ),
+        
+        if (showRecenterButton && !isFollowingUser)
+          const SizedBox(height: 8),
+        
         // Filter button
         _buildControlButton(
           icon: Icons.filter_list,
@@ -48,10 +67,12 @@ class MapControls extends StatelessWidget {
     required IconData icon,
     required VoidCallback onPressed,
     required String tooltip,
+    Color? backgroundColor,
+    Color? iconColor,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: backgroundColor ?? Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -74,7 +95,7 @@ class MapControls extends StatelessWidget {
             ),
             child: Icon(
               icon,
-              color: const Color(0xFF2979FF),
+              color: iconColor ?? const Color(0xFF2979FF),
               size: 24,
             ),
           ),

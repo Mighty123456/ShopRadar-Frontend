@@ -13,23 +13,23 @@ class NetworkConfig {
     // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
     emulator: 'http://10.0.2.2:3000',
     // Use Vercel deployment for physical devices
-    physicalDevice: 'https://shop-radar-backend.vercel.app',
+    physicalDevice: 'https://shopradar-backend-8myp.vercel.app',
     // Use localhost for simulator (iOS simulator can access localhost directly)
     simulator: 'http://localhost:3000',
   };
 
   // Fallback URLs for when the primary hosted service is down
   static List<String> fallbackUrls = [
-    'https://shop-radar-backend.vercel.app',  // Vercel production fallback
     'http://localhost:3000',  // Local development fallback
     'http://10.0.2.2:3000',  // Emulator fallback
+    'https://shopradar-backend-8myp.vercel.app',  // Vercel production fallback
   ];
 
   static Map<String, String> webSocketUrls = {
     // Use 10.0.2.2 for emulator (Android emulator's special IP to access host machine's localhost)
     emulator: 'ws://10.0.2.2:3000',
     // Use Vercel deployment for physical devices
-    physicalDevice: 'wss://shop-radar-backend.vercel.app',
+    physicalDevice: 'wss://shopradar-backend-8myp.vercel.app',
     // Use localhost for simulator (iOS simulator can access localhost directly)
     simulator: 'ws://localhost:3000',
   };
@@ -115,18 +115,20 @@ class NetworkConfig {
   static Future<void> _comprehensiveNetworkDiscovery() async {
     try {
       // Test relevant base URLs in parallel for faster discovery
+      // Order: Vercel first -> localhost (simulator) -> emulator
       final candidates = <String>[
-        baseUrls[emulator]!, // localhost:3000 for emulator
-        baseUrls[simulator]!, // localhost:3000 for simulator
-        baseUrls[physicalDevice]!, // hosted URL for physical device
-        ...fallbackUrls, // Add fallback URLs for better reliability
+        baseUrls[physicalDevice]!, // hosted URL (Vercel) first as requested
+        baseUrls[simulator]!, // localhost next
+        baseUrls[emulator]!, // Android emulator special IP
+        ...fallbackUrls, // Additional fallbacks
       ];
       
       debugPrint('🔍 Testing candidate URLs: $candidates');
 
       final futures = candidates.map((baseUrl) => 
         _testConnection(baseUrl).timeout(
-          Duration(seconds: baseUrl.startsWith('https://') ? 60 : 3),
+          // Keep HTTPS timeout modest so we fail over to localhost quickly if Vercel is down
+          Duration(seconds: baseUrl.startsWith('https://') ? 10 : 3),
           onTimeout: () => false,
         ).then((isWorking) => isWorking ? baseUrl : null)
       );

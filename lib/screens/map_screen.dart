@@ -362,6 +362,17 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  void _onRecenterPressed() {
+    if (_currentLocation != null && _mapController != null) {
+      setState(() {
+        _followUser = true;
+      });
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(_currentLocation!, 16.0),
+      );
+    }
+  }
+
   void _onDirectionsPressed(Shop shop) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -448,6 +459,9 @@ class _MapScreenState extends State<MapScreen> {
                   const SnackBar(content: Text('Filter options coming soon!')),
                 );
               },
+              onRecenterPressed: _onRecenterPressed,
+              showRecenterButton: _currentLocation != null,
+              isFollowingUser: _followUser,
             ),
           ),
           

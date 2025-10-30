@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
+import 'network_config.dart';
 
 class ShopService {
   // Get shop owner's own shop details
@@ -538,51 +539,100 @@ class ShopService {
   // Helper method to upload product image
   static Future<Map<String, dynamic>> _uploadProductImage(File imageFile) async {
     try {
-      // Get auth token
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
+      // Helper to send to a given base
+      Future<Map<String, dynamic>> sendTo(String baseUrl) async {
+        // Get auth token
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString('token');
+
+        // Create multipart request
+        final request = http.MultipartRequest(
+          'POST',
+          Uri.parse('$baseUrl/api/upload/public?folder=products'),
+        );
+
+        // Add headers (do NOT set Content-Type manually; boundary is set by MultipartRequest)
+        if (token != null) {
+          request.headers['Authorization'] = 'Bearer $token';
+        }
+
+        // Add file to request
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'file',
+            imageFile.path,
+            filename: imageFile.path.split('/').last,
+          ),
+        );
+
+        final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
+        final response = await http.Response.fromStream(streamedResponse);
       
-      // Create multipart request
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${ApiService.baseUrl}/api/upload/public?folder=products'),
-      );
-      
-      // Add headers
-      request.headers.addAll({
-        'Content-Type': 'multipart/form-data',
-        if (token != null) 'Authorization': 'Bearer $token',
-      });
-      
-      // Add file to request
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'file',
-          imageFile.path,
-          filename: imageFile.path.split('/').last,
-        ),
-      );
-      
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return {
-          'success': true,
-          'data': {
-            'url': data['url'],
-            'publicId': data['publicId'],
-            'mimeType': data['mimeType'],
-          },
-        };
-      } else {
-        final error = jsonDecode(response.body);
-        return {
-          'success': false,
-          'message': error['message'] ?? 'Upload failed',
-        };
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          Map<String, dynamic> data = {};
+          try { data = jsonDecode(response.body); } catch (_) {}
+
+          final dynamic dataNode = data['data'] ?? data;
+          final String? url = (dataNode is Map && dataNode['url'] != null)
+              ? dataNode['url'] as String
+              : (dataNode is Map && dataNode['secure_url'] != null)
+                  ? dataNode['secure_url'] as String
+                  : (data['url'] ?? data['secure_url']) as String?;
+          final String? publicId = (dataNode is Map && dataNode['publicId'] != null)
+              ? dataNode['publicId'] as String
+              : (dataNode is Map && dataNode['public_id'] != null)
+                  ? dataNode['public_id'] as String
+                  : (data['publicId'] ?? data['public_id']) as String?;
+          final String? mimeType = (dataNode is Map && dataNode['mimeType'] != null)
+              ? dataNode['mimeType'] as String
+              : (dataNode is Map && dataNode['resource_type'] != null)
+                  ? (dataNode['resource_type'] == 'image' ? 'image/*' : 'application/octet-stream')
+                  : null;
+
+          if (url != null) {
+            return {
+              'success': true,
+              'data': {
+                'url': url,
+                'publicId': publicId,
+                if (mimeType != null) 'mimeType': mimeType,
+              },
+            };
+          }
+
+          return {
+            'success': false,
+            'message': 'Upload response missing url',
+          };
+        } else {
+          Map<String, dynamic> error = {};
+          try { error = jsonDecode(response.body); } catch (_) {}
+          return {
+            'success': false,
+            'message': error['message'] ?? 'Upload failed (status ${response.statusCode})',
+          };
+        }
       }
+
+      final Set<String> candidateSet = <String>{ApiService.baseUrl};
+      candidateSet.addAll(NetworkConfig.fallbackUrls);
+      if (NetworkConfig.isEmulator) {
+        candidateSet.add(NetworkConfig.baseUrls[NetworkConfig.emulator]!);
+      } else if (NetworkConfig.isSimulator) {
+        candidateSet.add(NetworkConfig.baseUrls[NetworkConfig.simulator]!);
+      } else if (NetworkConfig.isPhysicalDevice) {
+        candidateSet.addAll(NetworkConfig.discoveredUrls);
+        candidateSet.removeWhere((u) => u.contains('localhost'));
+      }
+      final List<String> candidates = candidateSet.toList();
+
+      Map<String, dynamic>? lastFailure;
+      for (final base in candidates) {
+        final result = await sendTo(base);
+        if (result['success'] == true) return result;
+        lastFailure = result;
+      }
+      return lastFailure ?? {'success': false, 'message': 'Upload failed: no candidates succeeded'};
     } catch (e) {
       debugPrint('Image upload error: $e');
       return {

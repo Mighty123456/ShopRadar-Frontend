@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' as http_parser;
 import 'api_service.dart';
 import '../models/user_model.dart';
 import 'network_config.dart';
@@ -12,52 +13,186 @@ class AuthService {
   static const String _tokenKey = 'token';
   static const String _userKey = 'user';
 
-  // Upload license file to backend
+  // Upload license file to backend with retry logic
   static Future<Map<String, dynamic>> _uploadLicenseFile(File file) async {
-    try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${ApiService.baseUrl}/api/upload/public?folder=shop-docs'),
-      );
-      
-      // Add file to request
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'file',
-          file.path,
-          filename: file.path.split('/').last,
-        ),
-      );
-      
-      // Add headers
-      request.headers.addAll({
-        'Content-Type': 'multipart/form-data',
-      });
-      
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return {
-          'success': true,
-          'url': data['url'],
-          'publicId': data['publicId'],
-        };
-      } else {
-        final error = jsonDecode(response.body);
-        return {
-          'success': false,
-          'message': error['message'] ?? 'Upload failed',
-        };
-      }
-    } catch (e) {
-      debugPrint('File upload error: $e');
+    const int maxRetries = 2;
+    int retryCount = 0;
+    
+    // Check file size before upload (max 10MB for Vercel compatibility)
+    final fileSize = await file.length();
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (fileSize > maxSize) {
       return {
         'success': false,
-        'message': 'Upload error: $e',
+        'message': 'File size too large. Maximum size is 10MB.',
+        'maxSize': '10MB',
+        'actualSize': '${(fileSize / (1024 * 1024)).toStringAsFixed(2)}MB'
       };
     }
+    
+    while (retryCount <= maxRetries) {
+      try {
+        debugPrint('Starting license file upload... (attempt ${retryCount + 1}/${maxRetries + 1})');
+        
+        Future<Map<String, dynamic>> sendTo(String baseUrl) async {
+          final Uri uploadUri = Uri.parse('$baseUrl/api/upload/public?folder=shop-docs');
+          debugPrint('Uploading license file to: $uploadUri');
+          final request = http.MultipartRequest('POST', uploadUri);
+        
+          // Add file to request (infer contentType; default to application/pdf for .pdf)
+          final String filename = file.path.split('/').last;
+          final String lower = filename.toLowerCase();
+          http.MultipartFile multipartFile;
+          if (lower.endsWith('.pdf')) {
+            multipartFile = await http.MultipartFile.fromPath(
+              'file',
+              file.path,
+              filename: filename,
+              contentType: http_parser.MediaType('application', 'pdf'),
+            );
+          } else if (lower.endsWith('.png')) {
+            multipartFile = await http.MultipartFile.fromPath(
+              'file',
+              file.path,
+              filename: filename,
+              contentType: http_parser.MediaType('image', 'png'),
+            );
+          } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+            multipartFile = await http.MultipartFile.fromPath(
+              'file',
+              file.path,
+              filename: filename,
+              contentType: http_parser.MediaType('image', 'jpeg'),
+            );
+          } else {
+            multipartFile = await http.MultipartFile.fromPath(
+              'file',
+              file.path,
+              filename: filename,
+            );
+          }
+          request.files.add(multipartFile);
+        
+          // Do not set Content-Type manually; let MultipartRequest compute with boundary
+        
+          // Send with a reduced timeout for Vercel compatibility
+          final streamedResponse = await request.send().timeout(const Duration(seconds: 25));
+          final response = await http.Response.fromStream(streamedResponse);
+          debugPrint('License upload response: ${response.statusCode} ${response.reasonPhrase}');
+          final String bodySnippet = response.body.length > 200
+              ? '${response.body.substring(0, 200)}…'
+              : response.body;
+          debugPrint('License upload body: $bodySnippet');
+        
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            Map<String, dynamic> data = {};
+            try {
+              data = jsonDecode(response.body);
+            } catch (_) {}
+
+            // Extract common shapes
+            final dynamic dataNode = data['data'] ?? data;
+            final String? url = (dataNode is Map && dataNode['url'] != null)
+                ? dataNode['url'] as String
+                : (dataNode is Map && dataNode['secure_url'] != null)
+                    ? dataNode['secure_url'] as String
+                    : (data['url'] ?? data['secure_url']) as String?;
+            final String? publicId = (dataNode is Map && dataNode['publicId'] != null)
+                ? dataNode['publicId'] as String
+                : (dataNode is Map && dataNode['public_id'] != null)
+                    ? dataNode['public_id'] as String
+                    : (data['publicId'] ?? data['public_id']) as String?;
+            final String? mimeType = (dataNode is Map && dataNode['mimeType'] != null)
+                ? dataNode['mimeType'] as String
+                : (dataNode is Map && dataNode['resource_type'] != null)
+                    ? (dataNode['resource_type'] == 'image' ? 'image/*' : 'application/octet-stream')
+                    : null;
+
+            if (url != null) {
+              return {
+                'success': true,
+                'url': url,
+                'publicId': publicId,
+                if (mimeType != null) 'mimeType': mimeType,
+              };
+            }
+
+            // Treat missing url as failure with diagnostics
+            return {
+              'success': false,
+              'message': 'Upload response missing url',
+              'status': response.statusCode,
+              'raw': bodySnippet,
+            };
+          } else {
+            Map<String, dynamic> error = {};
+            try {
+              error = jsonDecode(response.body);
+            } catch (_) {}
+            return {
+              'success': false,
+              'message': error['message'] ?? 'Upload failed (status ${response.statusCode})',
+              'status': response.statusCode,
+              'raw': bodySnippet,
+            };
+          }
+        }
+
+        // Try primary, then environment-aware fallbacks
+        final Set<String> candidateSet = <String>{ApiService.baseUrl};
+        candidateSet.addAll(NetworkConfig.fallbackUrls);
+        // Environment-specific options
+        if (NetworkConfig.isEmulator) {
+          candidateSet.add(NetworkConfig.baseUrls[NetworkConfig.emulator]!); // 10.0.2.2
+        } else if (NetworkConfig.isSimulator) {
+          candidateSet.add(NetworkConfig.baseUrls[NetworkConfig.simulator]!); // localhost on iOS sim
+        } else if (NetworkConfig.isPhysicalDevice) {
+          candidateSet.addAll(NetworkConfig.discoveredUrls); // LAN IPs discovered
+          candidateSet.removeWhere((u) => u.contains('localhost')); // avoid localhost on device
+        }
+        final List<String> candidates = candidateSet.toList();
+
+        Map<String, dynamic>? lastFailure;
+        for (final base in candidates) {
+          final result = await sendTo(base);
+          if (result['success'] == true) return result;
+          lastFailure = result;
+          // If we just tried an https host and got a 5xx, continue to next candidate
+        }
+        final result = lastFailure ?? {'success': false, 'message': 'Upload failed: no candidates succeeded'};
+        
+        // If upload succeeded, return the result
+        if (result['success'] == true) {
+          return result;
+        }
+        
+        // If this is the last attempt, return the error
+        if (retryCount >= maxRetries) {
+          return result;
+        }
+        
+        // Wait before retrying (exponential backoff)
+        debugPrint('Upload failed, retrying in ${(retryCount + 1) * 2} seconds...');
+        await Future.delayed(Duration(seconds: (retryCount + 1) * 2));
+        retryCount++;
+      } catch (e) {
+        debugPrint('File upload error (attempt ${retryCount + 1}): $e');
+        
+        // If this is the last attempt, return the error
+        if (retryCount >= maxRetries) {
+          return {
+            'success': false,
+            'message': 'Upload error: $e',
+          };
+        }
+        
+        // Wait before retrying (exponential backoff)
+        await Future.delayed(Duration(seconds: (retryCount + 1) * 2));
+        retryCount++;
+      }
+    }
+    
+    return {'success': false, 'message': 'Upload failed after all retries'};
   }
 
 

@@ -6,6 +6,7 @@ import '../services/location_service.dart';
  
 import '../models/shop.dart';
 import '../widgets/map_controls.dart';
+import '../widgets/directions_panel.dart';
 import '../config/mapbox_config.dart';
 import '../services/routing_service.dart';
 import '../services/search_service.dart';
@@ -50,6 +51,12 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
   bool _isLoading = true;
   Timer? _routeUpdateTimer;
   bool _showSearchOverlay = false;
+  bool _isNavigating = false;
+  bool _showDirectionsPanel = false;
+  bool _showArrivalAnimation = false;
+  late final AnimationController _arrivalController;
+  late final Animation<double> _arrivalScale;
+  late final Animation<double> _arrivalOpacity;
   
   latlng.LatLng? _currentLocation;
   Shop? _selectedShop;
@@ -73,6 +80,12 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     _recommendController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
     _recommendScale = Tween<double>(begin: 0.95, end: 1.08).animate(CurvedAnimation(parent: _recommendController, curve: Curves.easeInOut));
     _recommendController.repeat(reverse: true);
+    
+    // Arrival animation controller
+    _arrivalController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000));
+    _arrivalScale = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _arrivalController, curve: Curves.elasticOut));
+    _arrivalOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _arrivalController, curve: Curves.easeIn));
+    
     _initializeMap();
   }
 
@@ -82,6 +95,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     _routeUpdateTimer?.cancel();
     _pulseController.dispose();
     _recommendController.dispose();
+    _arrivalController.dispose();
     super.dispose();
   }
 
@@ -311,53 +325,6 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     return pin;
   }
 
-  Widget _buildModeChip({required IconData icon, required String label, required String mode}) {
-    final bool selected = _routeMode == (mode == 'motorcycle' ? 'driving' : mode);
-    return Tooltip(
-      message: selected ? '$label (selected)' : 'Route by $label',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            setState(() {
-              _routeMode = mode;
-            });
-            if (_selectedShop != null) {
-              _drawRouteTo(_selectedShop!);
-            } else if (_customDestination != null) {
-              _drawRouteToPoint(_customDestination!);
-            }
-          },
-          borderRadius: BorderRadius.circular(10),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeInOut,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: selected ? const Color(0xFF2979FF).withValues(alpha: 0.12) : Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: selected ? const Color(0xFF2979FF) : const Color(0xFFE5E7EB)),
-              boxShadow: selected
-                  ? [BoxShadow(color: const Color(0xFF2979FF).withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 2))]
-                  : [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 4, offset: const Offset(0, 1))],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedScale(
-                  scale: selected ? 1.1 : 1.0,
-                  duration: const Duration(milliseconds: 180),
-                  child: Icon(icon, size: 16, color: selected ? const Color(0xFF2979FF) : const Color(0xFF6B7280)),
-                ),
-                const SizedBox(width: 6),
-                Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: selected ? const Color(0xFF2979FF) : const Color(0xFF6B7280))),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   void _onMarkerTapped(Shop shop) {
     if (mounted) {
@@ -390,6 +357,104 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     }
   }
 
+  void _onRecenterPressed() {
+    if (_currentLocation != null) {
+      setState(() {
+        _followUser = true;
+      });
+      _mapController.move(_currentLocation!, MapConfig.defaultZoom);
+    }
+  }
+
+  void _onStartNavigation() {
+    setState(() {
+      _isNavigating = true;
+      _showDirectionsPanel = true;
+      _followUser = true;
+    });
+    
+    // Auto-zoom to show both user location and destination with smooth animation
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _fitRouteToView();
+      }
+    });
+  }
+
+  void _onEndNavigation() {
+    setState(() {
+      _isNavigating = false;
+      _showDirectionsPanel = false;
+      _routePolyline.clear();
+      _routeArrows.clear();
+      _routeLabels.clear();
+    });
+  }
+
+  void _onRouteModeChanged() {
+    // Cycle through route modes
+    setState(() {
+      switch (_routeMode) {
+        case 'driving':
+          _routeMode = 'foot';
+          break;
+        case 'foot':
+          _routeMode = 'cycling';
+          break;
+        case 'cycling':
+          _routeMode = 'driving';
+          break;
+      }
+    });
+    
+    // Redraw route with new mode
+    if (_selectedShop != null) {
+      _drawRouteTo(_selectedShop!);
+    } else if (_customDestination != null) {
+      _drawRouteToPoint(_customDestination!);
+    }
+  }
+
+  void _checkForArrival(latlng.LatLng userLocation) {
+    if (_selectedShop == null) return;
+    
+    final double distanceToShop = _haversineMeters(userLocation, latlng.LatLng(_selectedShop!.latitude, _selectedShop!.longitude));
+    
+    // Consider arrived if within 50 meters
+    if (distanceToShop <= 50 && !_showArrivalAnimation) {
+      _showArrivalSuccess();
+    }
+  }
+
+  void _checkForArrivalAtPoint(latlng.LatLng userLocation) {
+    if (_customDestination == null) return;
+    
+    final double distanceToDestination = _haversineMeters(userLocation, _customDestination!);
+    
+    // Consider arrived if within 50 meters
+    if (distanceToDestination <= 50 && !_showArrivalAnimation) {
+      _showArrivalSuccess();
+    }
+  }
+
+  void _showArrivalSuccess() {
+    setState(() {
+      _showArrivalAnimation = true;
+    });
+    
+    _arrivalController.forward().then((_) {
+      // Keep animation visible for 3 seconds
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _showArrivalAnimation = false;
+          });
+          _arrivalController.reset();
+        }
+      });
+    });
+  }
+
   void _drawRouteTo(Shop shop) {
     _routeUpdateTimer?.cancel();
     _routeUpdateTimer = Timer(const Duration(milliseconds: 500), () {
@@ -415,6 +480,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
           _lastRouteKm = (route.distanceMeters / 1000.0);
           _lastRouteMin = (route.durationSeconds / 60.0).round();
           _buildRouteArrows();
+          _showDirectionsPanel = true;
         });
         _fitRouteToView();
       } else {
@@ -426,6 +492,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
           _lastRouteKm = _haversineMeters(start, end) / 1000.0;
           _lastRouteMin = 0;
           _buildRouteArrows();
+          _showDirectionsPanel = true;
         });
         _fitRouteToView();
       }
@@ -468,6 +535,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
           _lastRouteKm = (route.distanceMeters / 1000.0);
           _lastRouteMin = (route.durationSeconds / 60.0).round();
           _buildRouteArrows();
+          _showDirectionsPanel = true;
         });
         _fitRouteToView();
       } else {
@@ -479,6 +547,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
           _lastRouteKm = _haversineMeters(start, end) / 1000.0;
           _lastRouteMin = 0;
           _buildRouteArrows();
+          _showDirectionsPanel = true;
         });
         _fitRouteToView();
       }
@@ -528,6 +597,13 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       } else if (_followUser && _customDestination != null && distance >= 10) {
         _drawRouteToPoint(_customDestination!);
       }
+      
+      // Check for arrival at destination
+      if (_isNavigating && _selectedShop != null) {
+        _checkForArrival(newLoc);
+      } else if (_isNavigating && _customDestination != null) {
+        _checkForArrivalAtPoint(newLoc);
+      }
     });
   }
 
@@ -548,14 +624,31 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
 
   void _fitRouteToView() {
     if (_routePolyline.length < 2) return;
+    
+    // Create bounds that include both user location and destination
     final bounds = LatLngBounds(_routePolyline.first, _routePolyline.first);
+    
+    // Add all route points
     for (final p in _routePolyline.skip(1)) {
       bounds.extend(p);
     }
+    
+    // Ensure user location is included in bounds
+    if (_currentLocation != null) {
+      bounds.extend(_currentLocation!);
+    }
+    
+    // Ensure destination is included in bounds
+    if (_selectedShop != null) {
+      bounds.extend(latlng.LatLng(_selectedShop!.latitude, _selectedShop!.longitude));
+    } else if (_customDestination != null) {
+      bounds.extend(_customDestination!);
+    }
+    
     try {
       _mapController.fitCamera(CameraFit.bounds(
         bounds: bounds,
-        padding: const EdgeInsets.fromLTRB(32, 120, 32, 160),
+        padding: const EdgeInsets.fromLTRB(32, 120, 32, 200), // Increased bottom padding for directions panel
       ));
     } catch (_) {}
   }
@@ -639,6 +732,35 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       return '$meters m';
     }
     return '${km.toStringAsFixed(1)} km';
+  }
+
+  Polyline _buildRoutePolyline() {
+    Color routeColor;
+    double strokeWidth;
+    
+    switch (_routeMode) {
+      case 'foot':
+        routeColor = const Color(0xFF10B981); // Green for walking
+        strokeWidth = 6;
+        break;
+      case 'cycling':
+        routeColor = const Color(0xFFF59E0B); // Orange for cycling
+        strokeWidth = 6;
+        break;
+      case 'driving':
+      default:
+        routeColor = const Color(0xFF2979FF); // Blue for driving
+        strokeWidth = 8;
+        break;
+    }
+
+    return Polyline(
+      points: _routePolyline,
+      color: routeColor,
+      strokeWidth: strokeWidth,
+      borderStrokeWidth: strokeWidth + 4,
+      borderColor: Colors.white.withValues(alpha: 0.8),
+    );
   }
 
   latlng.LatLng _toLL(Shop s) => latlng.LatLng(s.latitude, s.longitude);
@@ -827,11 +949,18 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
               ),
               if (_currentLocation != null)
                 CircleLayer(circles: [
+                  // Outer pulsing circle
                   CircleMarker(
                     point: _currentLocation!,
-                    color: const Color(0xFF2979FF).withValues(alpha: 0.15),
-                    borderStrokeWidth: 2,
-                    borderColor: const Color(0xFF2979FF).withValues(alpha: 0.6),
+                    color: const Color(0xFF2979FF).withValues(alpha: 0.1),
+                    borderStrokeWidth: 0,
+                    radius: 40,
+                  ),
+                  // Inner circle
+                  CircleMarker(
+                    point: _currentLocation!,
+                    color: const Color(0xFF2979FF).withValues(alpha: 0.2),
+                    borderStrokeWidth: 0,
                     radius: 25,
                   ),
                 ]),
@@ -839,18 +968,33 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
                 MarkerLayer(markers: [
                   Marker(
                     point: _currentLocation!,
-                    width: 30,
-                    height: 30,
+                    width: 32,
+                    height: 32,
                     child: ScaleTransition(
                       scale: _pulse,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.red,
+                          color: const Color(0xFF2979FF),
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
+                          border: Border.all(color: Colors.white, width: 4),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3)),
+                            BoxShadow(
+                              color: const Color(0xFF2979FF).withValues(alpha: 0.4), 
+                              blurRadius: 12, 
+                              offset: const Offset(0, 4),
+                              spreadRadius: 2,
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15), 
+                              blurRadius: 8, 
+                              offset: const Offset(0, 2),
+                            ),
                           ],
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 16,
                         ),
                       ),
                     ),
@@ -910,12 +1054,8 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
               if (_routePolyline.length >= 2)
                 PolylineLayer(
                   polylines: [
-                    // soft outer glow
-                    Polyline(points: _routePolyline, color: const Color(0x6693C5FD), strokeWidth: 16),
-                    // inner white core for contrast
-                    Polyline(points: _routePolyline, color: Colors.white.withValues(alpha: 0.85), strokeWidth: 10),
-                    // main light UI blue line
-                    Polyline(points: _routePolyline, color: const Color(0xFF60A5FA), strokeWidth: 7),
+                    // Enhanced route styling based on mode
+                    _buildRoutePolyline(),
                   ],
                 ),
               if (_routeArrows.isNotEmpty)
@@ -992,86 +1132,145 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
               onSearchPressed: _showSearchDialog,
               onMyLocationPressed: _onMyLocationPressed,
               onFilterPressed: _showFilterSheet,
+              onRecenterPressed: _onRecenterPressed,
+              showRecenterButton: _currentLocation != null,
+              isFollowingUser: _followUser,
             ),
           ),
 
-          // Route info pill
-          if (_routePolyline.length >= 2)
+          // Directions Panel
+          if (_showDirectionsPanel && _routePolyline.length >= 2)
             Positioned(
               bottom: 20,
-              left: 16,
-              right: 16,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.directions, color: Color(0xFF2979FF), size: 18),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              '${_formatDistanceKm(_lastRouteKm)} • ${_lastRouteMin > 0 ? '~$_lastRouteMin min' : 'ETA n/a'}',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  // Mode chips
-                                  _buildModeChip(icon: Icons.directions_walk, label: 'Walk', mode: 'foot'),
-                                  const SizedBox(width: 6),
-                                  _buildModeChip(icon: Icons.directions_car, label: 'Car', mode: 'driving'),
-                                  const SizedBox(width: 6),
-                                  _buildModeChip(icon: Icons.motorcycle, label: 'Moto', mode: 'motorcycle'),
-                                  const SizedBox(width: 6),
-                                  Tooltip(
-                                    message: 'Recenter route',
-                                    child: IconButton(
-                                      icon: const Icon(Icons.center_focus_strong),
-                                      tooltip: 'Recenter route',
-                                      onPressed: _fitRouteToView,
-                                    ),
-                                  ),
-                                  Tooltip(
-                                    message: 'Clear route',
-                                    child: IconButton(
-                                      icon: const Icon(Icons.clear),
-                                      tooltip: 'Clear route',
-                                      onPressed: () {
-                                        setState(() {
-                                          _routePolyline.clear();
-                                          _routeArrows.clear();
-                                          _customDestination = null;
-                                          _selectedShop = null;
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              left: 0,
+              right: 0,
+              child: DirectionsPanel(
+                destination: _selectedShop,
+                distanceKm: _lastRouteKm,
+                durationMinutes: _lastRouteMin,
+                routeMode: _routeMode,
+                onStartNavigation: _onStartNavigation,
+                onEndNavigation: _onEndNavigation,
+                onRouteModeChanged: _onRouteModeChanged,
+                isNavigating: _isNavigating,
               ),
             ),
           
+          // Arrival Success Animation
+          if (_showArrivalAnimation)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.3),
+                child: Center(
+                  child: AnimatedBuilder(
+                    animation: _arrivalController,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _arrivalScale.value,
+                        child: Opacity(
+                          opacity: _arrivalOpacity.value,
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Success Icon with Animation
+                                Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.check_circle,
+                                    color: Color(0xFF10B981),
+                                    size: 50,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                
+                                // Success Message
+                                Text(
+                                  '🎉 You\'ve Arrived!',
+                                  style: TextStyle(
+                                    fontSize: isTablet ? 24 : 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                
+                                Text(
+                                  _selectedShop?.name ?? 'Destination',
+                                  style: TextStyle(
+                                    fontSize: isTablet ? 18 : 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF2979FF),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 4),
+                                
+                                Text(
+                                  'Navigation completed successfully',
+                                  style: TextStyle(
+                                    fontSize: isTablet ? 14 : 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                
+                                const SizedBox(height: 20),
+                                
+                                // Action Button
+                                ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _showArrivalAnimation = false;
+                                      _isNavigating = false;
+                                      _showDirectionsPanel = false;
+                                    });
+                                    _arrivalController.reset();
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Great!',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+
           // Loading Indicator
           if (_isLoading)
             Container(
