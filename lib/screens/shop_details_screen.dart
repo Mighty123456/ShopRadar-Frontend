@@ -204,26 +204,49 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Shop image placeholder
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          const Color(0xFF2979FF).withValues(alpha: 0.8),
-                          const Color(0xFF2979FF).withValues(alpha: 0.6),
-                        ],
+                  // Shop image or placeholder gradient
+                  if (widget.shop.imageUrl != null && widget.shop.imageUrl!.isNotEmpty)
+                    Image.network(
+                      widget.shop.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                const Color(0xFF2979FF).withValues(alpha: 0.8),
+                                const Color(0xFF2979FF).withValues(alpha: 0.6),
+                              ],
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.store, size: 80, color: Colors.white),
+                          ),
+                        );
+                      },
+                    )
+                  else
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            const Color(0xFF2979FF).withValues(alpha: 0.8),
+                            const Color(0xFF2979FF).withValues(alpha: 0.6),
+                          ],
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.store,
+                          size: 80,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.store,
-                        size: 80,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
                   
                   // Status overlay
                   Positioned(

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:crypto/crypto.dart';
+import 'package:image_picker/image_picker.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/animated_message_dialog.dart';
 import '../services/shop_service.dart';
+import '../config/cloudinary_config.dart';
 
 class ShopProfileScreen extends StatefulWidget {
   const ShopProfileScreen({super.key});
@@ -29,6 +34,9 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
   bool _isOpenFriday = true;
   bool _isOpenSaturday = true;
   bool _isOpenSunday = false;
+  bool _isUploadingPhoto = false;
+  String? _shopPhotoUrl;
+  String? _licenseNumber;
   
   TimeOfDay _mondayOpen = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _mondayClose = const TimeOfDay(hour: 18, minute: 0);
@@ -74,6 +82,11 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
         _shopNameController.text = shop['shopName']?.toString() ?? '';
         _addressController.text = shop['address']?.toString() ?? '';
         _phoneController.text = shop['phone']?.toString() ?? '';
+        _licenseNumber = shop['licenseNumber']?.toString();
+        final photoProof = shop['photoProof'];
+        if (photoProof is Map && photoProof['url'] != null) {
+          _shopPhotoUrl = photoProof['url']?.toString();
+        }
         // Email is from owner relation if populated
         final owner = shop['ownerId'];
         if (owner is Map && owner['email'] != null) {
@@ -107,6 +120,117 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
     }
   }
 
+  String _generateCloudinarySignature(Map<String, String> params) {
+    final sorted = Map.fromEntries(params.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));
+    final toSign = sorted.entries.map((e) => '${e.key}=${e.value}').join('&') + CloudinaryConfig.apiSecret;
+    final bytes = utf8.encode(toSign);
+    final digest = sha1.convert(bytes);
+    return digest.toString();
+  }
+
+  Future<void> _pickAndUploadShopImage() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (picked == null) return;
+      setState(() {
+        _isUploadingPhoto = true;
+      });
+
+      final fileBytes = await picked.readAsBytes();
+      final base64Image = base64Encode(fileBytes);
+      final publicIdBase = _licenseNumber?.isNotEmpty == true ? _licenseNumber! : 'shop';
+      final publicId = '${publicIdBase}_${DateTime.now().millisecondsSinceEpoch}';
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final folder = 'shopradar/shops/$publicIdBase';
+
+      final paramsForSignature = {
+        'folder': folder,
+        'public_id': publicId,
+        'timestamp': timestamp,
+      };
+      final signature = _generateCloudinarySignature(paramsForSignature);
+
+      final uploadUrl = 'https://api.cloudinary.com/v1_1/${CloudinaryConfig.cloudName}/image/upload';
+      final response = await http.post(
+        Uri.parse(uploadUrl),
+        body: {
+          'file': 'data:image/jpeg;base64,$base64Image',
+          'public_id': publicId,
+          'folder': folder,
+          'timestamp': timestamp,
+          'api_key': CloudinaryConfig.apiKey,
+          'signature': signature,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final url = (data['secure_url'] ?? data['url'])?.toString();
+        if (url != null && url.isNotEmpty) {
+          // Save URL to backend for EXIF validation and persistence
+          final saveRes = await ShopService.uploadShopPhoto(photoUrl: url);
+          if (saveRes['success'] == true) {
+            setState(() {
+              _shopPhotoUrl = url;
+            });
+            if (mounted) {
+              MessageHelper.showAnimatedMessage(
+                context,
+                message: 'Shop image updated',
+                type: MessageType.success,
+                title: 'Upload Complete',
+              );
+            }
+          } else {
+            if (mounted) {
+              MessageHelper.showAnimatedMessage(
+                context,
+                message: saveRes['message'] ?? 'Failed to save shop photo',
+                type: MessageType.error,
+                title: 'Save Failed',
+              );
+            }
+          }
+        } else {
+          if (mounted) {
+            MessageHelper.showAnimatedMessage(
+              context,
+              message: 'Upload succeeded but no URL returned',
+              type: MessageType.error,
+              title: 'Upload Error',
+            );
+          }
+        }
+      } else {
+        final body = response.body.toString();
+        if (mounted) {
+          MessageHelper.showAnimatedMessage(
+            context,
+            message: 'Cloudinary upload failed: $body',
+            type: MessageType.error,
+            title: 'Upload Failed',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error uploading image: ${e.toString()}',
+          type: MessageType.error,
+          title: 'Upload Error',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingPhoto = false;
+        });
+      }
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -119,6 +243,9 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
         shopName: _shopNameController.text.trim(),
         phone: _phoneController.text.trim(),
         address: _addressController.text.trim(),
+        category: _selectedCategory, // Fix: always send currently selected value
+        description: _descriptionController.text.trim(),
+        // add more fields here as needed
       );
       if (!mounted) return;
       setState(() {
@@ -140,17 +267,18 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
+      MessageHelper.showAnimatedMessage(
+        context,
+        message: 'Error updating profile:  [31m${e.toString()} [0m',
+        type: MessageType.error,
+        title: 'Update Error',
+      );
+    } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
-        
-        MessageHelper.showAnimatedMessage(
-          context,
-          message: 'Failed to update profile. Please try again. ${e.toString()}',
-          type: MessageType.error,
-          title: 'Update Failed',
-        );
       }
     }
   }
@@ -430,6 +558,54 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
                 ),
                 child: Column(
                   children: [
+                    // Shop Image
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundColor: Colors.grey[200],
+                          backgroundImage: (_shopPhotoUrl != null && _shopPhotoUrl!.isNotEmpty)
+                              ? NetworkImage(_shopPhotoUrl!)
+                              : null,
+                          child: (_shopPhotoUrl == null || _shopPhotoUrl!.isEmpty)
+                              ? const Icon(Icons.store, color: Colors.grey)
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Shop Image',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _licenseNumber != null
+                                    ? 'Will be stored under your shop folder'
+                                    : 'Tip: add license to personalize folder',
+                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          height: 40,
+                          child: CustomButton(
+                            text: _isUploadingPhoto ? 'Uploading...' : (_shopPhotoUrl == null ? 'Add Image' : 'Change'),
+                            onPressed: _isUploadingPhoto ? null : _pickAndUploadShopImage,
+                            isLoading: _isUploadingPhoto,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     CustomTextField(
                       controller: _shopNameController,
                       labelText: 'Shop Name',

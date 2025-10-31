@@ -369,13 +369,21 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
   void _onStartNavigation() {
     setState(() {
       _isNavigating = true;
-      _showDirectionsPanel = true;
-      _followUser = true;
+      _showDirectionsPanel = false; // hide menu after starting navigation
+      _followUser = true; // follow user location
     });
+
+    // Center camera on current user immediately
+    if (_currentLocation != null) {
+      try {
+        _mapController.move(_currentLocation!, MapConfig.defaultZoom);
+      } catch (_) {}
+    }
     
-    // Auto-zoom to show both user location and destination with smooth animation
+    // Optionally fit route shortly after start for context, then resume follow
     Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
+      if (!mounted) return;
+      if (_selectedShop != null || _customDestination != null) {
         _fitRouteToView();
       }
     });
@@ -657,22 +665,82 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     _routeArrows.clear();
     _routeLabels.clear();
     if (_routePolyline.length < 3) return;
-    const int step = 12; // place arrow about every 12 points
-    for (int i = 0; i < _routePolyline.length - 1; i += step) {
-      final a = _routePolyline[i];
-      final b = _routePolyline[(i + 1).clamp(0, _routePolyline.length - 1)];
-      final double bearingRad = _bearingRadians(a, b);
-      _routeArrows.add(
-        Marker(
-          point: a,
-          width: 20,
-          height: 20,
-          child: Transform.rotate(
-            angle: bearingRad,
-            child: const Icon(Icons.navigation, size: 16, color: Color(0xFF2979FF)),
+
+    // Detect turns by comparing successive segment bearings
+    const double turnThresholdDeg = 30.0; // minimal angle change to consider a turn
+    const double uTurnThresholdDeg = 150.0; // angle change for U-turn
+
+    double toDeg(double rad) => rad * 180.0 / 3.141592653589793;
+    double norm180(double deg) {
+      double d = deg;
+      while (d > 180) { d -= 360; }
+      while (d < -180) { d += 360; }
+      return d;
+    }
+
+    for (int i = 1; i < _routePolyline.length - 1; i++) {
+      final prev = _routePolyline[i - 1];
+      final curr = _routePolyline[i];
+      final next = _routePolyline[i + 1];
+
+      final double bearing1 = toDeg(_bearingRadians(prev, curr));
+      final double bearing2 = toDeg(_bearingRadians(curr, next));
+      final double delta = norm180(bearing2 - bearing1);
+      final double absDelta = delta.abs();
+
+      if (absDelta >= turnThresholdDeg) {
+        IconData icon;
+        Color color;
+        if (absDelta >= uTurnThresholdDeg) {
+          // U-turn
+          icon = delta > 0 ? Icons.u_turn_right : Icons.u_turn_left;
+          color = const Color(0xFFEF4444); // red for U-turn
+        } else {
+          // Left or Right turn
+          icon = delta > 0 ? Icons.turn_right : Icons.turn_left;
+          color = const Color(0xFF2979FF); // primary for normal turns
+        }
+
+        _routeArrows.add(
+          Marker(
+            point: curr,
+            width: 28,
+            height: 28,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 6, offset: const Offset(0, 2)),
+                ],
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
           ),
-        ),
-      );
+        );
+      }
+    }
+
+    // As a fallback, also add sparse forward arrows along the path for direction sense
+    if (_routeArrows.isEmpty) {
+      const int step = 12; // place arrow about every 12 points
+      for (int i = 0; i < _routePolyline.length - 1; i += step) {
+        final a = _routePolyline[i];
+        final b = _routePolyline[(i + 1).clamp(0, _routePolyline.length - 1)];
+        final double bearingRad = _bearingRadians(a, b);
+        _routeArrows.add(
+          Marker(
+            point: a,
+            width: 20,
+            height: 20,
+            child: Transform.rotate(
+              angle: bearingRad,
+              child: const Icon(Icons.navigation, size: 16, color: Color(0xFF2979FF)),
+            ),
+          ),
+        );
+      }
     }
 
     // Add distance label at midpoint

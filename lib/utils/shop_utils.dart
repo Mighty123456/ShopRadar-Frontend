@@ -81,7 +81,8 @@ class ShopUtils {
       isOpen: shopData['isLive'] == true || shopData['isOpen'] == true,
       openingHours: openingHours,
       phone: (shopData['phone'] ?? '').toString(),
-      imageUrl: shopData['imageUrl']?.toString(),
+      imageUrl: (shopData['imageUrl']?.toString() ??
+          (shopData['photoProof'] is Map ? (shopData['photoProof']['url']?.toString()) : null)),
       description: shopData['description']?.toString(),
       amenities: (shopData['amenities'] as List<dynamic>?)
           ?.map((amenity) => amenity.toString())

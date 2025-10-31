@@ -53,30 +53,32 @@ class ShopService {
     String? address,
     String? gpsAddress,
     Map<String, double>? location,
+    String? description,
+    String? category,
+    String? openingHours,
+    List<String>? amenities,
   }) async {
     try {
       debugPrint('Updating shop details...');
-      
       final Map<String, dynamic> updateData = {};
-      
       if (shopName != null) updateData['shopName'] = shopName;
       if (phone != null) updateData['phone'] = phone;
       if (address != null) updateData['address'] = address;
       if (gpsAddress != null) updateData['gpsAddress'] = gpsAddress;
       if (location != null) updateData['location'] = location;
-      
+      if (description != null) updateData['description'] = description;
+      if (category != null) updateData['category'] = category;
+      if (openingHours != null) updateData['openingHours'] = openingHours;
+      if (amenities != null) updateData['amenities'] = amenities;
       final response = await ApiService.put('/api/shops/my-shop', updateData).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
           throw TimeoutException('Request timed out', const Duration(seconds: 30));
         },
       );
-
-      debugPrint('Update my shop response status: ${response.statusCode}');
+      debugPrint('Update my shop response status:  [32m${response.statusCode} [0m');
       debugPrint('Update my shop response body: ${response.body}');
-
       final data = jsonDecode(response.body);
-      
       if (response.statusCode == 200) {
         return {
           'success': true,
@@ -93,7 +95,7 @@ class ShopService {
       debugPrint('Update my shop error: $e');
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}',
+        'message': 'Network error:  [31m${e.toString()} [0m',
       };
     }
   }
@@ -131,6 +133,42 @@ class ShopService {
       }
     } catch (e) {
       debugPrint('Update shop status error: $e');
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
+      };
+    }
+  }
+
+  // Upload shop display photo URL (already uploaded to Cloudinary)
+  static Future<Map<String, dynamic>> uploadShopPhoto({required String photoUrl}) async {
+    try {
+      debugPrint('Uploading shop photo URL to backend...');
+      final response = await ApiService.post('/api/shops/my-shop/upload-photo', {
+        'photoUrl': photoUrl,
+      }).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('Request timed out', const Duration(seconds: 30));
+        },
+      );
+      debugPrint('Upload shop photo response status: ${response.statusCode}');
+      debugPrint('Upload shop photo response body: ${response.body}');
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'data': data['data'],
+          'message': data['message'] ?? 'Shop photo uploaded',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to upload shop photo',
+        };
+      }
+    } catch (e) {
+      debugPrint('Upload shop photo error: $e');
       return {
         'success': false,
         'message': 'Network error: ${e.toString()}',
@@ -329,7 +367,8 @@ class ShopService {
       // Upload product image if provided
       if (productData['image'] != null) {
         debugPrint('Uploading product image...');
-        final imageUploadResult = await _uploadProductImage(productData['image']);
+        final String category = (productData['category'] ?? '').toString();
+        final imageUploadResult = await _uploadProductImage(productData['image'], category);
         if (imageUploadResult['success'] == true) {
           final imageData = imageUploadResult['data'];
           if (imageData != null) {
@@ -583,7 +622,7 @@ class ShopService {
   }
 
   // Helper method to upload product image
-  static Future<Map<String, dynamic>> _uploadProductImage(File imageFile) async {
+  static Future<Map<String, dynamic>> _uploadProductImage(File imageFile, String category) async {
     try {
       // Helper to send to a given base
       Future<Map<String, dynamic>> sendTo(String baseUrl) async {
@@ -594,7 +633,7 @@ class ShopService {
         // Create multipart request
         final request = http.MultipartRequest(
           'POST',
-          Uri.parse('$baseUrl/api/upload/public?folder=products'),
+          Uri.parse('$baseUrl/api/products/upload-image'),
         );
 
         // Add headers (do NOT set Content-Type manually; boundary is set by MultipartRequest)
@@ -610,6 +649,9 @@ class ShopService {
             filename: imageFile.path.split('/').last,
           ),
         );
+
+        // Include product category so backend organizes into <shopCode>/<category>
+        request.fields['category'] = category;
 
         final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
         final response = await http.Response.fromStream(streamedResponse);

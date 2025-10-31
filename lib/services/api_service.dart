@@ -20,6 +20,7 @@ class ApiService {
 
   static Future<http.Response> get(String endpoint) async {
     final headers = await _getHeaders();
+    final String baseUrl = NetworkConfig.getBaseUrlForEndpoint(endpoint);
     return _requestWithRetry(
       () => (Duration timeout) => http
           .get(Uri.parse('$baseUrl$endpoint'), headers: headers)
@@ -29,6 +30,7 @@ class ApiService {
 
   static Future<http.Response> post(String endpoint, Map<String, dynamic> data) async {
     final headers = await _getHeaders();
+    final String baseUrl = NetworkConfig.getBaseUrlForEndpoint(endpoint);
     return _requestWithRetry(
       () => (Duration timeout) => http
           .post(
@@ -42,6 +44,7 @@ class ApiService {
 
   static Future<http.Response> put(String endpoint, Map<String, dynamic> data) async {
     final headers = await _getHeaders();
+    final String baseUrl = NetworkConfig.getBaseUrlForEndpoint(endpoint);
     return _requestWithRetry(
       () => (Duration timeout) => http
           .put(
@@ -55,6 +58,7 @@ class ApiService {
 
   static Future<http.Response> delete(String endpoint) async {
     final headers = await _getHeaders();
+    final String baseUrl = NetworkConfig.getBaseUrlForEndpoint(endpoint);
     return _requestWithRetry(
       () => (Duration timeout) => http
           .delete(
@@ -67,6 +71,7 @@ class ApiService {
 
   static Future<http.Response> patch(String endpoint, [Map<String, dynamic>? data]) async {
     final headers = await _getHeaders();
+    final String baseUrl = NetworkConfig.getBaseUrlForEndpoint(endpoint);
     return _requestWithRetry(
       () => (Duration timeout) => http
           .patch(

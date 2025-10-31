@@ -13,6 +13,7 @@ import '../widgets/animated_message_dialog.dart';
 import '../services/profile_service.dart';
 import '../services/auth_service.dart';
 import 'package:flutter/foundation.dart';
+import '../utils/onboarding_utils.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -154,7 +155,8 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     try {
       // Load the saved Cloudinary URL from SharedPreferences
       final prefs = await SharedPreferences.getInstance();
-      final cloudinaryUrl = prefs.getString('cloudinary_image_url');
+      final userId = _user?.id;
+      final cloudinaryUrl = userId != null ? prefs.getString('cloudinary_image_url_$userId') : null;
       
       if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
         setState(() {
@@ -323,6 +325,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     if (confirmed == true && mounted) {
       try {
         await AuthService.logout();
+        await OnboardingUtils.resetOnboarding();
         if (mounted) {
           Navigator.of(context).pushReplacementNamed('/auth');
         }
@@ -720,7 +723,10 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
         
         // Save the Cloudinary URL to SharedPreferences
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('cloudinary_image_url', responseData['public_id']);
+        final userId = _user?.id;
+        if (userId != null) {
+          await prefs.setString('cloudinary_image_url_$userId', responseData['public_id']);
+        }
         
         if (mounted) {
           MessageHelper.showAnimatedMessage(
@@ -808,7 +814,10 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
       // Remove the saved Cloudinary URL from SharedPreferences
       try {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('cloudinary_image_url');
+        final userId = _user?.id;
+        if (userId != null) {
+          await prefs.remove('cloudinary_image_url_$userId');
+        }
         debugPrint('Cloudinary image URL removed from preferences');
       } catch (e) {
         debugPrint('Failed to remove image URL from preferences: $e');

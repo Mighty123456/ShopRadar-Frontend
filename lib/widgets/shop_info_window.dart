@@ -95,6 +95,26 @@ class ShopInfoWindow extends StatelessWidget {
             ),
           ),
           
+          // Optional shop image
+          if (shop.imageUrl != null && shop.imageUrl!.isNotEmpty)
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.network(
+                  shop.imageUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.grey[200],
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.store, color: Colors.grey, size: 40),
+                    );
+                  },
+                ),
+              ),
+            ),
+          
           // Shop content
           Padding(
             padding: const EdgeInsets.all(16),

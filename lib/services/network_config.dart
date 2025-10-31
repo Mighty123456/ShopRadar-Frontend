@@ -384,6 +384,20 @@ class NetworkConfig {
     return _currentEnvironment == simulator;
   }
   
+  static const String vercelBaseUrl = 'https://shopradarbackend-mu.vercel.app';
+  static const String renderBaseUrl = 'https://shopradarbackend-ob4u.onrender.com';
+
+  /// Choose correct backend by endpoint.
+  static String getBaseUrlForEndpoint(String endpoint) {
+    if (endpoint.startsWith('/api/auth') || endpoint.startsWith('/api/otp')) {
+      return vercelBaseUrl;
+    }
+    if (endpoint.startsWith('/api/upload')) {
+      return renderBaseUrl;
+    }
+    // Default to Render for all else
+    return renderBaseUrl;
+  }
   
   static Map<String, dynamic> getNetworkInfo() {
     return {

@@ -25,6 +25,8 @@ import 'screens/onboarding_screen.dart';
 import 'screens/search_results_screen.dart';
 import 'services/realtime_service.dart';
 import 'debug/voice_search_debug.dart';
+import 'services/auth_service.dart';
+import 'utils/onboarding_utils.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -43,7 +45,7 @@ class ShopRadarApp extends StatefulWidget {
   State<ShopRadarApp> createState() => _ShopRadarAppState();
 }
 
-class _ShopRadarAppState extends State<ShopRadarApp> {      
+class _ShopRadarAppState extends State<ShopRadarApp> {
   bool _showOnboarding = false;
   bool _isInitializing = true;
   bool _showSplashBeforeOnboarding = false;
@@ -56,48 +58,45 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
 
   Future<void> _initializeApp() async {
     debugPrint('🚀 Starting app initialization...');
-    
     // Show splash screen for 3 seconds
     await Future.delayed(const Duration(seconds: 3));
-    
     debugPrint('✅ Initial splash screen duration complete');
-    
+
+    final loggedIn = await AuthService.isLoggedIn();
+    final onboardingDone = await OnboardingUtils.isOnboardingComplete();
+
     if (mounted) {
       setState(() {
-        _showSplashBeforeOnboarding = true; // Show splash before onboarding
+        _showSplashBeforeOnboarding = true;
         _isInitializing = false;
       });
-      
       // Remove native splash screen
       FlutterNativeSplash.remove();
-      
       // Initialize realtime service in background
       RealtimeService().initialize();
-
       // Show splash screen before onboarding for 2 more seconds
       await Future.delayed(const Duration(seconds: 2));
-      
       if (mounted) {
         setState(() {
           _showSplashBeforeOnboarding = false;
-          _showOnboarding = true; // Now show onboarding
+          // Only show onboarding if signed out AND onboarding is not complete
+          _showOnboarding = !loggedIn && !onboardingDone;
         });
-        debugPrint('🎯 App ready! Showing onboarding');
+        debugPrint('🎯 App ready! (_isLoggedIn=$loggedIn, onboardingDone=$onboardingDone, showOnboarding=$_showOnboarding)');
       }
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
-    
     if (_isInitializing || _showSplashBeforeOnboarding) {
       debugPrint('📱 Showing animated splash screen');
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         home: SplashScreen(
-          message: _isInitializing ? 'Initializing ShopRadar...' : 'Preparing your experience...',
+          message: _isInitializing
+              ? 'Initializing ShopRadar...'
+              : 'Preparing your experience...',
           duration: const Duration(seconds: 3),
         ),
       );
@@ -105,7 +104,7 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
     return MaterialApp(
       title: 'ShopRadar',
       debugShowCheckedModeBanner: false,
-       theme: ThemeData(
+      theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
         colorScheme: const ColorScheme(
@@ -124,16 +123,13 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
       home: _showOnboarding
           ? OnboardingScreen(onFinish: () async {
               debugPrint('🎯 Onboarding finished, showing splash before auth');
-              
-              // Show splash screen before going to auth
+              await OnboardingUtils.markOnboardingComplete();
               setState(() {
                 _showOnboarding = false;
                 _showSplashBeforeOnboarding = true;
               });
-              
-              // Wait for splash screen duration
+              // Wait for splash duration
               await Future.delayed(const Duration(seconds: 2));
-              
               if (mounted) {
                 setState(() {
                   _showSplashBeforeOnboarding = false;

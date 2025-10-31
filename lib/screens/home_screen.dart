@@ -87,35 +87,26 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // Initialize WebSocket connection
-      await FeaturedOffersService().initializeWebSocket();
-      
-      // Listen to real-time updates
-      _offersSubscription = FeaturedOffersService().offersStream.listen((offers) {
-        if (mounted) {
-          setState(() {
-            _featuredOffers = offers;
-            _loadingOffers = false;
-          });
-        }
-      });
+      // Get current user location
+      final position = await LocationService.getCurrentLocation();
+      List<FeaturedOffer> offers = [];
 
-      // Fetch initial offers
-      try {
-        final position = await LocationService.getCurrentLocation();
-        if (position != null) {
-          await FeaturedOffersService().fetchFeaturedOffers(
-            latitude: position.latitude,
-            longitude: position.longitude,
-            limit: 10,
-          );
-        } else {
-          // If location is null, fetch offers without location filter
-          await FeaturedOffersService().fetchFeaturedOffers(limit: 10);
-        }
-      } catch (e) {
-        // If location fails, fetch offers without location filter
-        await FeaturedOffersService().fetchFeaturedOffers(limit: 10);
+      if (position != null) {
+        offers = await FeaturedOffersService().fetchFeaturedOffers(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          radius: 5000, // 5km
+        );
+      } else {
+        // Fallback: fetch global featured offers if location unavailable
+        offers = await FeaturedOffersService().fetchFeaturedOffers();
+      }
+
+      if (mounted) {
+        setState(() {
+          _featuredOffers = offers;
+          _loadingOffers = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -975,99 +966,107 @@ class _HomeScreenState extends State<HomeScreen> {
       itemBuilder: (context, index) {
         final shop = _nearbyShops[index];
     return Container(
-          margin: EdgeInsets.only(bottom: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-          padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+      margin: EdgeInsets.only(bottom: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+      padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
       decoration: BoxDecoration(
         color: Colors.white,
-            borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+        borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
         children: [
           Container(
-                width: isLargeTablet ? 60 : (isTablet ? 50 : 40),
-                height: isLargeTablet ? 60 : (isTablet ? 50 : 40),
+            width: isLargeTablet ? 60 : (isTablet ? 50 : 40),
+            height: isLargeTablet ? 60 : (isTablet ? 50 : 40),
             decoration: BoxDecoration(
               color: const Color(0xFF2979FF).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+              borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
             ),
             child: Icon(
               Icons.store,
               color: const Color(0xFF2979FF),
-                  size: isLargeTablet ? 24 : (isTablet ? 20 : 16),
+              size: isLargeTablet ? 24 : (isTablet ? 20 : 16),
             ),
           ),
-              SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+          SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  shop.name,
+                  style: TextStyle(
+                    fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1A1A1A),
+                  ),
+                ),
+                SizedBox(height: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
+                Text(
+                  shop.category,
+                  style: TextStyle(
+                    fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
+                    color: const Color(0xFF6B7280),
+                  ),
+                ),
+                SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                Row(
                   children: [
-                    Text(
-                    shop.name,
-                      style: TextStyle(
-                        fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1A1A1A),
-                      ),
+                    Icon(
+                      Icons.location_on,
+                      color: const Color(0xFF6B7280),
+                      size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
                     ),
-                    SizedBox(height: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
+                    SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
                     Text(
-                    shop.category,
+                      shop.formattedDistance,
                       style: TextStyle(
-                        fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
+                        fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
                         color: const Color(0xFF6B7280),
                       ),
                     ),
-                    SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                Row(
-                  children: [
-                        Icon(
-                          Icons.location_on,
-                          color: const Color(0xFF6B7280),
-                          size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
-                        ),
-                        SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
-                        Text(
-                        shop.formattedDistance,
-                              style: TextStyle(
-                            fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
-                            color: const Color(0xFF6B7280),
-                              ),
-                            ),
                     SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-                        Icon(
-                          Icons.star,
-                          color: Colors.amber,
-                          size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
-                        ),
-                        SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
-                        Text(
-                        shop.rating.toStringAsFixed(1),
-                            style: TextStyle(
-                            fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
-                            color: const Color(0xFF6B7280),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                    Icon(
+                      Icons.star,
+                      color: Colors.amber,
+                      size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+                    ),
+                    SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
+                    Text(
+                      shop.rating.toStringAsFixed(1),
+                      style: TextStyle(
+                        fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
+                        color: const Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios,
-                color: const Color(0xFF6B7280),
-                size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.of(context).pushNamed(
+                '/shop-details',
+                arguments: {'shop': shop},
+              );
+            },
+            child: Icon(
+              Icons.arrow_forward_ios,
+              color: const Color(0xFF6B7280),
+              size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+            ),
           ),
         ],
       ),
-        );
+    );
       },
     );
   }
