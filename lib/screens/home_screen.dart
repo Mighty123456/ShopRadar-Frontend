@@ -88,34 +88,58 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // Get current user location
-      final position = await LocationService.getCurrentLocation();
+      // OPTIMIZED: Start fetching offers immediately without waiting for location
+      // This prevents blocking the UI while waiting for GPS
       List<FeaturedOffer> offers = [];
-
-      if (position != null) {
-        debugPrint('[Home Screen] Fetching featured offers with location: lat=${position.latitude}, lng=${position.longitude}');
-        // Use 8km radius to match backend default and provide better coverage
-        offers = await FeaturedOffersService().fetchFeaturedOffers(
-          latitude: position.latitude,
-          longitude: position.longitude,
-          radius: 8000, // 8km radius (8000 meters) - matches backend default
-        );
-      } else {
-        debugPrint('[Home Screen] No location available, fetching offers without location filter');
-        // Fallback: fetch global featured offers if location unavailable
-        offers = await FeaturedOffersService().fetchFeaturedOffers(
-          radius: 8000, // 8km radius
-        );
-      }
-
-      debugPrint('[Home Screen] Loaded ${offers.length} featured offers');
-
+      
+      // Fetch offers without location first (fast path)
+      debugPrint('[Home Screen] Fetching featured offers immediately (no location filter)');
+      offers = await FeaturedOffersService().fetchFeaturedOffers(
+        radius: 8000, // 8km radius
+      );
+      
+      // Update UI immediately with initial results
       if (mounted) {
         setState(() {
           _featuredOffers = offers;
           _loadingOffers = false;
         });
       }
+
+      // Then try to get location and update with location-based offers in background
+      // This allows the UI to show content quickly while location is being fetched
+      try {
+        final position = await LocationService.getCurrentLocation().timeout(
+          const Duration(seconds: 5), // Timeout after 5 seconds
+          onTimeout: () {
+            debugPrint('[Home Screen] Location fetch timed out, using global offers');
+            return null;
+          },
+        );
+        
+        if (position != null && mounted) {
+          debugPrint('[Home Screen] Updating offers with location: lat=${position.latitude}, lng=${position.longitude}');
+          // Fetch location-based offers in background and update
+          final locationOffers = await FeaturedOffersService().fetchFeaturedOffers(
+            latitude: position.latitude,
+            longitude: position.longitude,
+            radius: 8000, // 8km radius (8000 meters) - matches backend default
+          );
+          
+          // Only update if we got better results
+          if (locationOffers.isNotEmpty && mounted) {
+            setState(() {
+              _featuredOffers = locationOffers;
+            });
+            debugPrint('[Home Screen] Updated with ${locationOffers.length} location-based offers');
+          }
+        }
+      } catch (locationError) {
+        debugPrint('[Home Screen] Error fetching location for offers: $locationError');
+        // Continue with offers already loaded
+      }
+
+      debugPrint('[Home Screen] Loaded ${_featuredOffers.length} featured offers');
     } catch (e) {
       if (mounted) {
         setState(() {
