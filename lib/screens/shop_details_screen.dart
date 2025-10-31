@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/shop.dart';
 import '../services/favorite_shops_service.dart';
 import '../services/shop_offers_service.dart' as offers_service;
+import '../services/shop_service.dart';
 import 'map_screen_free.dart';
 import '../widgets/rating_widget.dart';
 import '../widgets/review_card.dart';
@@ -35,6 +36,9 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
   bool _isLoadingOffers = true;
   String? _offersError;
   
+  // Shop details state - to update if imageUrl is missing
+  Shop? _loadedShop;
+  
   // Animation controllers
   late AnimationController _fadeController;
   late AnimationController _scaleController;
@@ -63,10 +67,61 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
     _loadReviews();
     _loadOffers();
     _checkFavoriteStatus();
+    _loadShopDetailsIfNeeded();
   }
+  
+  // Load shop details if imageUrl is missing
+  Future<void> _loadShopDetailsIfNeeded() async {
+    // If shop already has imageUrl, no need to fetch
+    if (widget.shop.imageUrl != null && widget.shop.imageUrl!.isNotEmpty) {
+      return;
+    }
+    
+    try {
+      // Try to get shop from nearby shops API (public endpoint)
+      final response = await ShopService.getNearbyShops(
+        latitude: widget.shop.latitude,
+        longitude: widget.shop.longitude,
+        radius: 1000, // 1km radius to find the exact shop
+      ).timeout(const Duration(seconds: 10));
+      
+      if (response['success'] == true) {
+        final shops = response['shops'] as List<dynamic>? ?? [];
+        
+        // Find the matching shop by ID
+        Shop? matchingShop;
+        try {
+          final matchingShopJson = shops.firstWhere(
+            (s) => (s['_id'] ?? s['id'])?.toString() == widget.shop.id,
+          );
+          matchingShop = Shop.fromJson(matchingShopJson);
+        } catch (e) {
+          // Shop not found in nearby shops, keep original shop
+          matchingShop = null;
+        }
+        
+        if (matchingShop != null) {
+          // Only update if we got an imageUrl
+          if (matchingShop.imageUrl != null && matchingShop.imageUrl!.isNotEmpty) {
+            if (mounted) {
+              setState(() {
+                _loadedShop = matchingShop;
+              });
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading shop details: $e');
+    }
+  }
+  
+  // Get the shop to display (use loaded shop if available, otherwise use widget.shop)
+  Shop get _displayShop => _loadedShop ?? widget.shop;
 
   Future<void> _checkFavoriteStatus() async {
-    final isFav = await FavoriteShopsService.isFavorite(widget.shop.id);
+    final isFav = await FavoriteShopsService.isFavorite(_displayShop.id);
     if (mounted) {
       setState(() {
         _isFavorite = isFav;
@@ -314,9 +369,9 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                 fit: StackFit.expand,
                 children: [
                   // Shop image or placeholder gradient
-                  if (widget.shop.imageUrl != null && widget.shop.imageUrl!.isNotEmpty)
+                  if (_displayShop.imageUrl != null && _displayShop.imageUrl!.isNotEmpty)
                     Image.network(
-                      widget.shop.imageUrl!,
+                      _displayShop.imageUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(

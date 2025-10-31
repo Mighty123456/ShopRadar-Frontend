@@ -123,14 +123,30 @@ class ProductInfo {
   });
 
   factory ProductInfo.fromJson(Map<String, dynamic> json) {
+    // Parse images - backend returns array of objects with {url, publicId, mimeType, uploadedAt}
+    List<String> imageUrls = [];
+    if (json['images'] is List) {
+      final imagesList = json['images'] as List<dynamic>;
+      for (final img in imagesList) {
+        if (img is Map<String, dynamic>) {
+          // Extract URL from image object
+          final url = img['url']?.toString();
+          if (url != null && url.isNotEmpty) {
+            imageUrls.add(url);
+          }
+        } else if (img is String) {
+          // If it's already a string URL, use it directly
+          imageUrls.add(img);
+        }
+      }
+    }
+    
     return ProductInfo(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
       category: json['category'] ?? '',
       price: (json['price'] ?? 0.0).toDouble(),
-      images: (json['images'] as List<dynamic>?)
-          ?.map((img) => img.toString())
-          .toList() ?? [],
+      images: imageUrls,
     );
   }
 }

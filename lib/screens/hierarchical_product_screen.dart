@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import '../models/category.dart';
 import '../services/category_service.dart';
 import '../services/shop_service.dart';
@@ -41,6 +43,8 @@ class _HierarchicalProductScreenState extends State<HierarchicalProductScreen> {
   int _currentStep = 0; // 0: Category, 1: Brand, 2: Item
   bool _showProductList = true; // Show product list by default
   List<Map<String, dynamic>> _products = [];
+  File? _productImage;
+  String? _productImageName;
 
   @override
   void initState() {
@@ -323,6 +327,34 @@ class _HierarchicalProductScreenState extends State<HierarchicalProductScreen> {
     });
   }
 
+  Future<void> _pickProductImage() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        if (file.path != null) {
+          setState(() {
+            _productImage = File(file.path!);
+            _productImageName = file.name;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error picking image: $e',
+          type: MessageType.error,
+          title: 'Image Error',
+        );
+      }
+    }
+  }
+
   Future<void> _createItem() async {
     if (!_itemFormKey.currentState!.validate() || _selectedCategory == null || _selectedBrand == null) return;
 
@@ -338,6 +370,7 @@ class _HierarchicalProductScreenState extends State<HierarchicalProductScreen> {
       'itemName': _itemNameController.text.trim(),
       'price': double.parse(_priceController.text),
       'stock': int.parse(_stockController.text),
+      'image': _productImage, // Include image file if selected
     };
 
     final result = await ShopService.createProductWithOffer(
@@ -388,6 +421,8 @@ class _HierarchicalProductScreenState extends State<HierarchicalProductScreen> {
     _itemDescriptionController.clear();
     _priceController.clear();
     _stockController.clear();
+    _productImage = null;
+    _productImageName = null;
   }
 
   void _goToStep(int step) {
@@ -827,6 +862,109 @@ class _HierarchicalProductScreenState extends State<HierarchicalProductScreen> {
                     maxLines: 3,
                   ),
                   const SizedBox(height: 16),
+                  
+                  // Product Image Upload
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Product Image',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.orange[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Optional',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: _pickProductImage,
+                        child: Container(
+                          width: double.infinity,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.grey.shade300,
+                              width: 2,
+                              style: BorderStyle.solid,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.white,
+                          ),
+                          child: _productImage != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.file(
+                                    _productImage!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.add_photo_alternate,
+                                      size: 40,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Tap to add product image',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                      if (_productImageName != null) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 16,
+                              color: Colors.green,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Selected: $_productImageName',
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
                   Row(
                     children: [
                       Expanded(

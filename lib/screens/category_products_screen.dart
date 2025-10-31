@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import '../widgets/custom_text_field.dart';
 import '../services/shop_service.dart';
 import '../widgets/animated_message_dialog.dart';
@@ -384,6 +386,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
           price: result['price'],
           stock: result['stock'],
           status: result['status'],
+          image: result['image'], // Include image file if a new one is selected
+          category: result['category'], // Include category for image upload
         );
 
         if (updateResult['success']) {
@@ -1272,6 +1276,9 @@ class _EditProductDialogState extends State<_EditProductDialog> {
   late TextEditingController _priceController;
   late TextEditingController _stockController;
   late String _status;
+  File? _productImage;
+  String? _productImageName;
+  String? _existingImageUrl;
 
   @override
   void initState() {
@@ -1281,6 +1288,14 @@ class _EditProductDialogState extends State<_EditProductDialog> {
     _priceController = TextEditingController(text: widget.product['price']?.toString() ?? '');
     _stockController = TextEditingController(text: widget.product['stock']?.toString() ?? '');
     _status = widget.product['status'] ?? 'active';
+    
+    // Set existing image URL if available
+    if (widget.product['images'] != null && widget.product['images'] is List && (widget.product['images'] as List).isNotEmpty) {
+      final firstImage = widget.product['images'][0];
+      if (firstImage is Map && firstImage['url'] != null) {
+        _existingImageUrl = firstImage['url'];
+      }
+    }
   }
 
   @override
@@ -1291,18 +1306,52 @@ class _EditProductDialogState extends State<_EditProductDialog> {
     _stockController.dispose();
     super.dispose();
   }
+  
+  Future<void> _pickProductImage() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        if (file.path != null) {
+          setState(() {
+            _productImage = File(file.path!);
+            _productImageName = file.name;
+            _existingImageUrl = null; // Clear existing URL when new image is picked
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error picking image: $e',
+          type: MessageType.error,
+          title: 'Image Error',
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Edit Product'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        child: SingleChildScrollView(
+          child: SizedBox(
+            width: double.maxFinite,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
               // Product Name
               CustomTextField(
                 controller: _nameController,
@@ -1323,6 +1372,166 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                 labelText: 'Description',
                 hintText: 'Enter product description',
                 maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              
+              // Product Image Upload
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Product Image',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Optional',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: _pickProductImage,
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.grey.shade300,
+                              width: 2,
+                              style: BorderStyle.solid,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.white,
+                          ),
+                          child: _productImage != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.file(
+                                    _productImage!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : _existingImageUrl != null
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.network(
+                                        _existingImageUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return _buildImagePlaceholder();
+                                        },
+                                      ),
+                                    )
+                                  : _buildImagePlaceholder(),
+                        ),
+                        // Overlay to show "Tap to change" when editing with existing image
+                        if (_existingImageUrl != null && _productImage == null)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.camera_alt,
+                                        size: 18,
+                                        color: Colors.blue,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Tap to change image',
+                                        style: TextStyle(
+                                          color: Colors.blue,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (_productImageName != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          size: 16,
+                          color: Colors.green,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Selected: $_productImageName',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else if (_existingImageUrl != null && _productImage == null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.image,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Current image. Tap above to update.',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 16),
               
@@ -1399,7 +1608,9 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                   }
                 },
               ),
-            ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -1416,6 +1627,27 @@ class _EditProductDialogState extends State<_EditProductDialog> {
     );
   }
 
+  Widget _buildImagePlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.add_photo_alternate,
+          size: 40,
+          color: Colors.grey.shade400,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Tap to add product image',
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _saveProduct() {
     if (_formKey.currentState!.validate()) {
       final result = {
@@ -1424,6 +1656,8 @@ class _EditProductDialogState extends State<_EditProductDialog> {
         'price': double.parse(_priceController.text),
         'stock': int.parse(_stockController.text),
         'status': _status,
+        'image': _productImage, // Include image file if a new one is selected
+        'category': widget.product['category'], // Include category for image upload
       };
       Navigator.of(context).pop(result);
     }
