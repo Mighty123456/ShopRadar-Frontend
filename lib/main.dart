@@ -185,7 +185,7 @@ class _ShopRadarAppState extends State<ShopRadarApp> {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
           return ShopComparisonScreen(shops: args?['shops'] ?? []);
         },
-        '/stores': (context) => const StoresScreen(),
+        '/stores': (context) => StoresScreen(),
         '/favorites': (context) => const FavoritesScreen(),
         '/voice-debug': (context) => const VoiceSearchDebugScreen(),
 

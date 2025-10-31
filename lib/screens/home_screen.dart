@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../widgets/animated_message_dialog.dart';
 import 'map_screen_free.dart';
 import '../services/notification_service.dart';
@@ -92,15 +93,22 @@ class _HomeScreenState extends State<HomeScreen> {
       List<FeaturedOffer> offers = [];
 
       if (position != null) {
+        debugPrint('[Home Screen] Fetching featured offers with location: lat=${position.latitude}, lng=${position.longitude}');
+        // Use 8km radius to match backend default and provide better coverage
         offers = await FeaturedOffersService().fetchFeaturedOffers(
           latitude: position.latitude,
           longitude: position.longitude,
-          radius: 5000, // 5km
+          radius: 8000, // 8km radius (8000 meters) - matches backend default
         );
       } else {
+        debugPrint('[Home Screen] No location available, fetching offers without location filter');
         // Fallback: fetch global featured offers if location unavailable
-        offers = await FeaturedOffersService().fetchFeaturedOffers();
+        offers = await FeaturedOffersService().fetchFeaturedOffers(
+          radius: 8000, // 8km radius
+        );
       }
+
+      debugPrint('[Home Screen] Loaded ${offers.length} featured offers');
 
       if (mounted) {
         setState(() {
@@ -114,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _loadingOffers = false;
         });
       }
-      debugPrint('Error initializing featured offers: $e');
+      debugPrint('[Home Screen] Error initializing featured offers: $e');
     }
   }
 
@@ -542,44 +550,51 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildQuickCategory(String title, IconData icon, bool isSelected, bool isSmallScreen, bool isMedium, bool isLarge, bool isExtraLarge, bool isTablet, bool isLargeTablet) {
-    return GestureDetector(
-      onTap: () {
-        // Handle category selection
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Searching for $title...')),
-        );
-      },
-      child: Container(
-      padding: EdgeInsets.symmetric(
-          horizontal: isLargeTablet ? 20 : (isTablet ? 16 : 12),
-          vertical: isLargeTablet ? 12 : (isTablet ? 10 : 8),
-      ),
-      decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2979FF) : Colors.white,
-          borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF2979FF) : const Color(0xFFE5E7EB),
-            width: 1,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          // Provide haptic feedback
+          HapticFeedback.mediumImpact();
+          // Navigate to stores screen with category filter
+          Navigator.of(context).pushNamed(
+            '/stores',
+            arguments: {'category': title},
+          );
+        },
+        borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+              horizontal: isLargeTablet ? 20 : (isTablet ? 16 : 12),
+              vertical: isLargeTablet ? 12 : (isTablet ? 10 : 8),
           ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-              color: isSelected ? Colors.white : const Color(0xFF6B7280),
-              size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
+          decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFF2979FF) : Colors.white,
+              borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+              border: Border.all(
+                color: isSelected ? const Color(0xFF2979FF) : const Color(0xFFE5E7EB),
+                width: 1,
+              ),
           ),
-            SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-          Text(
-            title,
-            style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF374151),
-                fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
-                fontWeight: FontWeight.w500,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                  color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                  size: isLargeTablet ? 20 : (isTablet ? 18 : 16),
+              ),
+                SizedBox(width: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+              Text(
+                title,
+                style: TextStyle(
+                    color: isSelected ? Colors.white : const Color(0xFF374151),
+                    fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
+                    fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
             ),
-          ),
-        ],
         ),
       ),
     );
@@ -666,7 +681,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               child: SizedBox(
-                height: isLargeTablet ? 320 : (isTablet ? 280 : 240), // Increased height for better content display
+                height: isLargeTablet ? 360 : (isTablet ? 340 : 320), // Increased height for better content display
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: _loadingOffers ? 3 : (_featuredOffers.isEmpty ? 1 : _featuredOffers.length),
@@ -765,101 +780,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     
     final offer = _featuredOffers[index % _featuredOffers.length];
-    final colors = [Colors.orange, Colors.pink, Colors.green, Colors.red, Colors.blue, Colors.purple, Colors.teal];
-    final color = colors[index % colors.length];
     
-    return Container(
-      width: isLargeTablet ? 280 : (isTablet ? 240 : 200),
-      margin: EdgeInsets.only(right: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            color,
-            color.withValues(alpha: 0.8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-            child: Padding(
-              padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  offer.title,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                Text(
-                  offer.formattedDiscount,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: isLargeTablet ? 4 : 2),
-                Text(
-                  offer.shop.name,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (offer.daysRemaining > 0) ...[
-                  SizedBox(height: isLargeTablet ? 4 : 2),
-                  Text(
-                    '${offer.daysRemaining} days left',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: isLargeTablet ? 10 : (isTablet ? 8 : 6),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-                  Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                  'Shop Now',
-                        style: TextStyle(
-                    color: Colors.white,
-                    fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.white,
-                  size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-      ),
+    return _InteractiveOfferCard(
+      offer: offer,
+      isTablet: isTablet,
+      isLargeTablet: isLargeTablet,
+      onTap: () {
+        // Navigate to shop details or product details
+        HapticFeedback.mediumImpact();
+        // You can navigate to shop details or search results
+        Navigator.of(context).pushNamed('/search-results', arguments: {'query': offer.product.name});
+      },
     );
   }
 
@@ -965,106 +896,113 @@ class _HomeScreenState extends State<HomeScreen> {
       itemCount: _nearbyShops.length,
       itemBuilder: (context, index) {
         final shop = _nearbyShops[index];
-    return Container(
-      margin: EdgeInsets.only(bottom: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-      padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: isLargeTablet ? 60 : (isTablet ? 50 : 40),
-            height: isLargeTablet ? 60 : (isTablet ? 50 : 40),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2979FF).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
-            ),
-            child: Icon(
-              Icons.store,
-              color: const Color(0xFF2979FF),
-              size: isLargeTablet ? 24 : (isTablet ? 20 : 16),
+    return InkWell(
+      onTap: () {
+        // Navigate to map with directions to the selected store
+        HapticFeedback.mediumImpact();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MapScreenFree(
+              shopsOverride: [shop],
+              routeToShop: shop,
             ),
           ),
-          SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  shop.name,
-                  style: TextStyle(
-                    fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1A1A1A),
+        );
+      },
+      borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+      child: Container(
+        margin: EdgeInsets.only(bottom: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+        padding: EdgeInsets.all(isLargeTablet ? 20 : (isTablet ? 16 : 12)),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(isLargeTablet ? 16 : (isTablet ? 14 : 12)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: isLargeTablet ? 60 : (isTablet ? 50 : 40),
+              height: isLargeTablet ? 60 : (isTablet ? 50 : 40),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2979FF).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+              ),
+              child: Icon(
+                Icons.store,
+                color: const Color(0xFF2979FF),
+                size: isLargeTablet ? 24 : (isTablet ? 20 : 16),
+              ),
+            ),
+            SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    shop.name,
+                    style: TextStyle(
+                      fontSize: isLargeTablet ? 18 : (isTablet ? 16 : 14),
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1A1A1A),
+                    ),
                   ),
-                ),
-                SizedBox(height: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
-                Text(
-                  shop.category,
-                  style: TextStyle(
-                    fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
-                    color: const Color(0xFF6B7280),
-                  ),
-                ),
-                SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on,
+                  SizedBox(height: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
+                  Text(
+                    shop.category,
+                    style: TextStyle(
+                      fontSize: isLargeTablet ? 14 : (isTablet ? 12 : 10),
                       color: const Color(0xFF6B7280),
-                      size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
                     ),
-                    SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
-                    Text(
-                      shop.formattedDistance,
-                      style: TextStyle(
-                        fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
+                  ),
+                  SizedBox(height: isLargeTablet ? 8 : (isTablet ? 6 : 4)),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
                         color: const Color(0xFF6B7280),
+                        size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
                       ),
-                    ),
-                    SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
-                    Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
-                    ),
-                    SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
-                    Text(
-                      shop.rating.toStringAsFixed(1),
-                      style: TextStyle(
-                        fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
-                        color: const Color(0xFF6B7280),
-                        fontWeight: FontWeight.w500,
+                      SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
+                      Text(
+                        shop.formattedDistance,
+                        style: TextStyle(
+                          fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
+                          color: const Color(0xFF6B7280),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      SizedBox(width: isLargeTablet ? 16 : (isTablet ? 12 : 8)),
+                      Icon(
+                        Icons.star,
+                        color: Colors.amber,
+                        size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
+                      ),
+                      SizedBox(width: isLargeTablet ? 4 : (isTablet ? 2 : 2)),
+                      Text(
+                        shop.rating.toStringAsFixed(1),
+                        style: TextStyle(
+                          fontSize: isLargeTablet ? 12 : (isTablet ? 10 : 8),
+                          color: const Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          GestureDetector(
-            onTap: () {
-              Navigator.of(context).pushNamed(
-                '/shop-details',
-                arguments: {'shop': shop},
-              );
-            },
-            child: Icon(
+            Icon(
               Icons.arrow_forward_ios,
               color: const Color(0xFF6B7280),
               size: isLargeTablet ? 16 : (isTablet ? 14 : 12),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
       },
@@ -1097,8 +1035,10 @@ class _HomeScreenState extends State<HomeScreen> {
         final category = categories[index];
         return GestureDetector(
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Browsing ${category['name']}...')),
+            // Navigate to stores screen with category filter
+            Navigator.of(context).pushNamed(
+              '/stores',
+              arguments: {'category': category['name'] as String},
             );
           },
           child: Container(
@@ -1270,5 +1210,348 @@ class _HomeScreenState extends State<HomeScreen> {
     _realtimeSubscription?.cancel();
     // Don't dispose the singleton service as other screens might need it
     super.dispose();
+  }
+}
+
+// Interactive offer card widget with e-commerce style design
+class _InteractiveOfferCard extends StatefulWidget {
+  final FeaturedOffer offer;
+  final bool isTablet;
+  final bool isLargeTablet;
+  final VoidCallback onTap;
+
+  const _InteractiveOfferCard({
+    required this.offer,
+    required this.isTablet,
+    required this.isLargeTablet,
+    required this.onTap,
+  });
+
+  @override
+  State<_InteractiveOfferCard> createState() => _InteractiveOfferCardState();
+}
+
+class _InteractiveOfferCardState extends State<_InteractiveOfferCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    setState(() => _isPressed = true);
+    _controller.forward();
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    setState(() => _isPressed = false);
+    _controller.reverse();
+    widget.onTap();
+  }
+
+  void _handleTapCancel() {
+    setState(() => _isPressed = false);
+    _controller.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cardWidth = widget.isLargeTablet ? 220.0 : (widget.isTablet ? 200.0 : 180.0);
+    final cardHeight = widget.isLargeTablet ? 340.0 : (widget.isTablet ? 320.0 : 300.0);
+    final hasImage = widget.offer.product.images.isNotEmpty;
+    final firstImage = hasImage ? widget.offer.product.images[0] : null;
+    
+    return AnimatedBuilder(
+      animation: _scaleAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: GestureDetector(
+            onTapDown: _handleTapDown,
+            onTapUp: _handleTapUp,
+            onTapCancel: _handleTapCancel,
+            child: Container(
+              width: cardWidth,
+              height: cardHeight,
+              margin: EdgeInsets.only(right: widget.isLargeTablet ? 16 : (widget.isTablet ? 12 : 8)),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: _isPressed ? 0.1 : 0.15),
+                    blurRadius: _isPressed ? 8 : 12,
+                    offset: Offset(0, _isPressed ? 2 : 4),
+                    spreadRadius: _isPressed ? 0 : 1,
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Product Image Section
+                  Stack(
+                    children: [
+                      Container(
+                        height: widget.isLargeTablet ? 140 : (widget.isTablet ? 130 : 120),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3F4F6),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(16),
+                            topRight: Radius.circular(16),
+                          ),
+                        ),
+                        child: firstImage != null
+                            ? ClipRRect(
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(16),
+                                  topRight: Radius.circular(16),
+                                ),
+                                child: Image.network(
+                                  firstImage,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => _buildPlaceholderImage(),
+                                ),
+                              )
+                            : _buildPlaceholderImage(),
+                      ),
+                      // Discount Badge
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.red.withValues(alpha: 0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.local_offer,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                widget.offer.formattedDiscount,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Days Remaining Badge
+                      if (widget.offer.daysRemaining > 0 && widget.offer.daysRemaining <= 7)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${widget.offer.daysRemaining}d left',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  // Content Section
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.all(widget.isLargeTablet ? 14 : (widget.isTablet ? 12 : 10)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Product Name
+                              Text(
+                                widget.offer.product.name,
+                                style: TextStyle(
+                                  fontSize: widget.isLargeTablet ? 15 : (widget.isTablet ? 14 : 13),
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF1F2937),
+                                  height: 1.3,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              // Offer Title
+                              Text(
+                                widget.offer.title,
+                                style: TextStyle(
+                                  fontSize: widget.isLargeTablet ? 13 : (widget.isTablet ? 12 : 11),
+                                  color: const Color(0xFF6B7280),
+                                  height: 1.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              // Price and Rating Row
+                              Row(
+                                children: [
+                                  // Original Price (strikethrough)
+                                  if (widget.offer.product.price > 0)
+                                    Text(
+                                      '\$${widget.offer.product.price.toStringAsFixed(0)}',
+                                      style: TextStyle(
+                                        fontSize: widget.isLargeTablet ? 12 : 11,
+                                        color: const Color(0xFF9CA3AF),
+                                        decoration: TextDecoration.lineThrough,
+                                      ),
+                                    ),
+                                  if (widget.offer.product.price > 0) const SizedBox(width: 6),
+                                  // Discounted Price
+                                  if (widget.offer.product.price > 0)
+                                    Text(
+                                      '\$${(widget.offer.discountType == 'Percentage' 
+                                        ? (widget.offer.product.price * (1 - widget.offer.discountValue / 100))
+                                        : (widget.offer.product.price - widget.offer.discountValue)).toStringAsFixed(0)}',
+                                      style: TextStyle(
+                                        fontSize: widget.isLargeTablet ? 16 : (widget.isTablet ? 15 : 14),
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF10B981),
+                                      ),
+                                    ),
+                                  const Spacer(),
+                                  // Shop Rating
+                                  if (widget.offer.shop.rating > 0)
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.star,
+                                          color: Colors.amber,
+                                          size: 14,
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          widget.offer.shop.rating.toStringAsFixed(1),
+                                          style: TextStyle(
+                                            fontSize: widget.isLargeTablet ? 12 : 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(0xFF6B7280),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          // Shop Name and Action Button
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.offer.shop.name,
+                                style: TextStyle(
+                                  fontSize: widget.isLargeTablet ? 11 : 10,
+                                  color: const Color(0xFF9CA3AF),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF2979FF), Color(0xFF1E88E5)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'View Offer',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Icon(
+                                      Icons.arrow_forward,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      color: const Color(0xFFF3F4F6),
+      child: Center(
+        child: Icon(
+          Icons.image_outlined,
+          color: Colors.grey[400],
+          size: widget.isLargeTablet ? 48 : (widget.isTablet ? 40 : 36),
+        ),
+      ),
+    );
   }
 } 

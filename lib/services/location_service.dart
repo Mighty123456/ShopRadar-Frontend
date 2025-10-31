@@ -55,10 +55,10 @@ class LocationService {
         return null;
       }
 
-      // Get current position with high accuracy
+      // Get current position with best available accuracy
       Position position = await Geolocator.getCurrentPosition(
         locationSettings: LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.best, // Use best accuracy for better GPS tracking
           timeLimit: _timeout,
         ),
       );

@@ -43,7 +43,38 @@ class _StoresScreenState extends State<StoresScreen> {
   @override
   void initState() {
     super.initState();
-    _loadStores();
+    // Get category from route arguments if available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final category = args?['category'] as String?;
+      if (category != null) {
+        // Map home screen category names to stores screen category names
+        final mappedCategory = _mapCategoryName(category);
+        // Set sort to distance before loading to ensure shops are sorted by distance
+        _sortBy = 'distance';
+        setState(() {
+          _selectedCategory = mappedCategory;
+        });
+        _loadStores(overrideCategory: mappedCategory);
+      } else {
+        _loadStores();
+      }
+    });
+  }
+
+  // Map category names from home screen to stores screen format
+  String _mapCategoryName(String homeCategory) {
+    final categoryMap = {
+      'Electronics': 'Electronics',
+      'Fashion': 'Fashion',
+      'Food': 'Food & Dining',
+      'Health': 'Health & Beauty',
+      'Sports': 'Sports & Fitness',
+      'Books': 'Books & Media',
+      'Home': 'Home & Garden',
+      'Beauty': 'Health & Beauty',
+    };
+    return categoryMap[homeCategory] ?? homeCategory;
   }
 
   Future<void> _loadStores({String? overrideCategory}) async {

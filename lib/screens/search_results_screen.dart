@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/shop.dart';
 import '../models/product_result.dart';
 import '../services/search_service.dart';
@@ -20,7 +21,7 @@ class SearchResultsScreen extends StatefulWidget {
   State<SearchResultsScreen> createState() => _SearchResultsScreenState();
 }
 
-class _SearchResultsScreenState extends State<SearchResultsScreen> {
+class _SearchResultsScreenState extends State<SearchResultsScreen> with TickerProviderStateMixin {
   late TextEditingController _controller;
   List<ProductResult> _productResults = [];
   List<Shop> _shopResults = [];
@@ -33,12 +34,42 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   double? _maxDistanceKm; // null = no cap
   double? _minPrice; // products only
   double? _maxPrice; // products only
+  
+  // Animation controllers
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.query);
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
+    );
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
+    );
+    _fadeController.forward();
+    _slideController.forward();
     _checkConnectivityAndSearch();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _fadeController.dispose();
+    _slideController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkConnectivityAndSearch() async {
@@ -122,17 +153,18 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         '${recommended.length} best matches',
         Icons.star,
         const Color(0xFFFF6B35),
-        action: TextButton.icon(
-          onPressed: shops.isEmpty ? null : () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => MapScreenFree(
-                  shopsOverride: shops,
-                  drawRoutesForAll: true,
+          action: TextButton.icon(
+            onPressed: shops.isEmpty ? null : () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => MapScreenFree(
+                    shopsOverride: shops,
+                    drawRoutesForAll: true,
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
           icon: const Icon(Icons.map, size: 16),
           label: const Text('View all shops on map'),
           style: TextButton.styleFrom(
@@ -151,17 +183,18 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         '${shops.length} total',
         Icons.store,
         Colors.grey[600]!,
-        action: TextButton.icon(
-          onPressed: shops.isEmpty ? null : () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => MapScreenFree(
-                  shopsOverride: shops,
-                  drawRoutesForAll: true,
+          action: TextButton.icon(
+            onPressed: shops.isEmpty ? null : () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => MapScreenFree(
+                    shopsOverride: shops,
+                    drawRoutesForAll: true,
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
           icon: const Icon(Icons.map, size: 16),
           label: const Text('View all shops on map'),
           style: TextButton.styleFrom(
@@ -181,6 +214,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: () {
+              HapticFeedback.mediumImpact();
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => MapScreenFree(
@@ -202,9 +236,37 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         ),
       ));
     }
-    return ListView.builder(
-      itemCount: items.length,
-      itemBuilder: (context, index) => items[index],
+    return RefreshIndicator(
+      onRefresh: () async {
+        HapticFeedback.mediumImpact();
+        await _runSearch(_controller.text);
+      },
+      color: const Color(0xFF2979FF),
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: ListView.builder(
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              return TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: Duration(milliseconds: 300 + (index * 50)),
+                builder: (context, value, child) {
+                  return Opacity(
+                    opacity: value,
+                    child: Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: child,
+                    ),
+                  );
+                },
+                child: items[index],
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 
@@ -224,204 +286,65 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     final hasOffer = p.bestOfferPercent > 0;
     final discountedPrice = hasOffer ? p.price * (1 - p.bestOfferPercent / 100) : p.price;
     
-    // Debug logging
-    debugPrint('Building product tile for ${p.name}: bestOfferPercent=${p.bestOfferPercent}, hasOffer=$hasOffer');
-    
-    return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: isTablet ? 16 : 12,
-        vertical: isTablet ? 8 : 6,
-      ),
-      child: Card(
-        elevation: 2,
-        shadowColor: Colors.black.withValues(alpha: 0.1),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey[100]!, width: 1),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Navigator.of(context).pushNamed('/shop-details', arguments: {
-              'shop': Shop(
-                id: p.shopId,
-                name: p.shopName,
-                category: '',
-                address: p.shopAddress,
-                latitude: p.shopLatitude,
-                longitude: p.shopLongitude,
-                rating: p.shopRating,
-                reviewCount: 0,
-                distance: p.distanceKm,
-                offers: const [],
-                isOpen: true,
-                openingHours: '',
-                phone: '',
-                imageUrl: p.imageUrl,
-                description: p.description,
-                amenities: const [],
-                lastUpdated: null,
-              ),
-            });
-          },
-          child: Padding(
-            padding: EdgeInsets.all(isTablet ? 16 : 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with offer badge
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Product image placeholder
-                    Container(
-                      width: isTablet ? 80 : 60,
-                      height: isTablet ? 80 : 60,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF2979FF).withValues(alpha: 0.1),
-                            const Color(0xFF2979FF).withValues(alpha: 0.05),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: p.imageUrl != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                p.imageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => _buildProductIcon(),
-                              ),
-                            )
-                          : _buildProductIcon(),
-                    ),
-                    SizedBox(width: isTablet ? 16 : 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Product name and offer badge
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  p.name,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: isTablet ? 18 : 16,
-                                    color: Colors.grey[800],
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: isTablet ? 8 : 6),
-                          // Shop info
-                          Row(
-                            children: [
-                              Icon(Icons.store, size: isTablet ? 16 : 14, color: const Color(0xFF2979FF)),
-                              SizedBox(width: isTablet ? 6 : 4),
-                              Expanded(
-                                child: Text(
-                                  p.shopName,
-                                  style: TextStyle(
-                                    fontSize: isTablet ? 14 : 12,
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: isTablet ? 6 : 4),
-                          // Rating and distance
-                          Row(
-                            children: [
-                              Icon(Icons.star, size: isTablet ? 16 : 14, color: Colors.amber[600]),
-                              SizedBox(width: isTablet ? 4 : 2),
-                              Text(
-                                p.shopRating.toStringAsFixed(1),
-                                style: TextStyle(
-                                  fontSize: isTablet ? 14 : 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey[700],
-                                ),
-                              ),
-                              SizedBox(width: isTablet ? 8 : 6),
-                              Icon(Icons.location_on, size: isTablet ? 16 : 14, color: Colors.grey[500]),
-                              SizedBox(width: isTablet ? 4 : 2),
-                              Text(
-                                p.distanceKm < 1 
-                                    ? '${(p.distanceKm * 1000).round()}m'
-                                    : '${p.distanceKm.toStringAsFixed(1)}km',
-                                style: TextStyle(
-                                  fontSize: isTablet ? 14 : 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: isTablet ? 12 : 8),
-                // Price section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Original price strikethrough removed with offer tag
-                        Text(
-                          '₹${discountedPrice.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: isTablet ? 20 : 18,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF2979FF),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2979FF).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF2979FF).withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.arrow_forward, size: isTablet ? 16 : 14, color: const Color(0xFF2979FF)),
-                          SizedBox(width: isTablet ? 4 : 2),
-                          Text(
-                            'View Shop',
-                            style: TextStyle(
-                              fontSize: isTablet ? 12 : 10,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF2979FF),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+    return _InteractiveProductCardWidget(
+      product: p,
+      isTablet: isTablet,
+      discountedPrice: discountedPrice,
+      hasOffer: hasOffer,
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        // Find the corresponding shop from shop results to get proper shop imageUrl
+        final Shop matchingShop = _shopResults.firstWhere(
+          (s) => s.id == p.shopId,
+          orElse: () => Shop(
+            id: p.shopId,
+            name: p.shopName,
+            category: '',
+            address: p.shopAddress,
+            latitude: p.shopLatitude,
+            longitude: p.shopLongitude,
+            rating: p.shopRating,
+            reviewCount: 0,
+            distance: p.distanceKm,
+            offers: const [],
+            isOpen: true,
+            openingHours: '',
+            phone: '',
+            imageUrl: null,
+            description: p.description,
+            amenities: const [],
+            lastUpdated: null,
           ),
-        ),
-      ),
+        );
+        
+        final Shop shopForDetails = Shop(
+          id: matchingShop.id,
+          name: matchingShop.name,
+          category: matchingShop.category,
+          address: matchingShop.address,
+          latitude: matchingShop.latitude,
+          longitude: matchingShop.longitude,
+          rating: matchingShop.rating,
+          reviewCount: matchingShop.reviewCount,
+          distance: matchingShop.distance,
+          offers: matchingShop.offers,
+          isOpen: matchingShop.isOpen,
+          openingHours: matchingShop.openingHours,
+          phone: matchingShop.phone,
+          imageUrl: matchingShop.imageUrl,
+          description: matchingShop.description ?? p.description,
+          amenities: matchingShop.amenities,
+          lastUpdated: matchingShop.lastUpdated,
+        );
+        
+        Navigator.of(context).pushNamed('/shop-details', arguments: {
+          'shop': shopForDetails,
+        });
+      },
+      onLongPress: () {
+        HapticFeedback.heavyImpact();
+        _copyProductInfo(p);
+      },
     );
   }
 
@@ -514,11 +437,15 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     );
   }
   Future<void> _runSearch(String q) async {
+    HapticFeedback.lightImpact();
     setState(() {
       _isLoading = true;
       _errorMessage = null;
       _isFromCache = false;
     });
+    // Reset animations for new search
+    _fadeController.reset();
+    _slideController.reset();
 
     try {
       // Mixed search: products + shops
@@ -592,9 +519,17 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         _productResults = mixed.products;
         _shopResults = mixed.shops;
       });
+      
+      // Animate results in
+      _fadeController.forward();
+      _slideController.forward();
 
       // Cache the results for offline access
       await RecentSearchService.cacheSearchResults(q, mixed.shops, mixed.products);
+      
+      if (mixed.products.isNotEmpty || mixed.shops.isNotEmpty) {
+        HapticFeedback.selectionClick();
+      }
     } catch (e) {
       if (!mounted) return;
       
@@ -686,7 +621,19 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                 tooltip: 'Voice search',
               ),
             ),
-            onSubmitted: (value) => _runSearch(value),
+              onSubmitted: (value) {
+                HapticFeedback.lightImpact();
+                _runSearch(value);
+              },
+              onChanged: (value) {
+                // Clear search when empty
+                if (value.isEmpty && _productResults.isNotEmpty && _shopResults.isNotEmpty) {
+                  setState(() {
+                    _productResults = [];
+                    _shopResults = [];
+                  });
+                }
+              },
           ),
         ),
         actions: [
@@ -739,7 +686,10 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                 color: Colors.white,
               ),
               tooltip: 'Filters',
-              onPressed: _showFilters,
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                _showFilters();
+              },
             ),
           ),
           Container(
@@ -756,7 +706,10 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                 color: Colors.white,
               ),
               tooltip: 'Refresh',
-              onPressed: _isLoading ? null : () => _runSearch(_controller.text),
+              onPressed: _isLoading ? null : () {
+                HapticFeedback.mediumImpact();
+                _runSearch(_controller.text);
+              },
             ),
           ),
         ],
@@ -859,11 +812,133 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   Widget _buildFilterChip(String label, VoidCallback onClear) {
     return InputChip(
       label: Text(label),
-      onDeleted: onClear,
+      onDeleted: () {
+        HapticFeedback.lightImpact();
+        onClear();
+      },
       deleteIcon: const Icon(Icons.close, size: 16),
       backgroundColor: const Color(0xFFEFF6FF),
       labelStyle: const TextStyle(color: Color(0xFF1D4ED8)),
       side: const BorderSide(color: Color(0xFFBFDBFE)),
+    );
+  }
+
+  Future<void> _copyProductInfo(ProductResult product) async {
+    HapticFeedback.lightImpact();
+    final text = '${product.name}\n'
+        'Shop: ${product.shopName}\n'
+        'Price: ₹${product.price.toStringAsFixed(0)}\n'
+        'Rating: ${product.shopRating.toStringAsFixed(1)}/5';
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Product info copied'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showShopQuickActions(Shop shop) {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (bottomSheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 16),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.location_on, color: Color(0xFF2979FF)),
+                title: const Text('Copy Address'),
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  HapticFeedback.lightImpact();
+                  await Clipboard.setData(ClipboardData(text: shop.address));
+                  if (!mounted) return;
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: const Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text('Address copied'),
+                        ],
+                      ),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.share, color: Color(0xFF2979FF)),
+                title: const Text('Share Shop'),
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  HapticFeedback.lightImpact();
+                  final text = 'Check out ${shop.name}!\n'
+                      '📍 ${shop.address}\n'
+                      '⭐ Rating: ${shop.rating}/5';
+                  await Clipboard.setData(ClipboardData(text: text));
+                  if (!mounted) return;
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: const Row(
+                        children: [
+                          Icon(Icons.share, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text('Shop details copied! Share it anywhere'),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF2979FF),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.map, color: Color(0xFF2979FF)),
+                title: const Text('View on Map'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  HapticFeedback.mediumImpact();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => MapScreenFree(
+                        shopsOverride: [shop],
+                        routeToShop: shop,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -948,6 +1023,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () {
+                          HapticFeedback.mediumImpact();
                           setState(() {
                             _minRating = tempRating;
                             _maxDistanceKm = tempMaxDistance == 0.0 ? null : tempMaxDistance;
@@ -955,6 +1031,10 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                             _maxPrice = tempPrice.end >= 100000 ? null : tempPrice.end;
                           });
                           Navigator.of(context).pop();
+                          // Trigger haptic on successful filter apply
+                          if (_hasActiveFilters()) {
+                            HapticFeedback.selectionClick();
+                          }
                         },
                         icon: const Icon(Icons.check),
                         label: const Text('Apply Filters'),
@@ -1003,7 +1083,12 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
+            HapticFeedback.mediumImpact();
             Navigator.of(context).pushNamed('/shop-details', arguments: { 'shop': shop });
+          },
+          onLongPress: () {
+            HapticFeedback.heavyImpact();
+            _showShopQuickActions(shop);
           },
           child: Padding(
             padding: EdgeInsets.all(isTablet ? 16 : 12),
@@ -1195,6 +1280,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
+                          HapticFeedback.lightImpact();
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => MapScreenFree(
@@ -1221,6 +1307,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
+                          HapticFeedback.mediumImpact();
                           Navigator.of(context).pushNamed('/shop-details', arguments: { 'shop': shop });
                         },
                         icon: const Icon(Icons.store, size: 16),
@@ -1406,4 +1493,352 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   }
 }
 
+// Interactive Product Card Widget with E-commerce Style Design
+class _InteractiveProductCardWidget extends StatefulWidget {
+  final ProductResult product;
+  final bool isTablet;
+  final double discountedPrice;
+  final bool hasOffer;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  const _InteractiveProductCardWidget({
+    required this.product,
+    required this.isTablet,
+    required this.discountedPrice,
+    required this.hasOffer,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  @override
+  State<_InteractiveProductCardWidget> createState() => _InteractiveProductCardWidgetState();
+}
+
+class _InteractiveProductCardWidgetState extends State<_InteractiveProductCardWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    setState(() => _isPressed = true);
+    _controller.forward();
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    setState(() => _isPressed = false);
+    _controller.reverse();
+    widget.onTap();
+  }
+
+  void _handleTapCancel() {
+    setState(() => _isPressed = false);
+    _controller.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _scaleAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: GestureDetector(
+            onTapDown: _handleTapDown,
+            onTapUp: _handleTapUp,
+            onTapCancel: _handleTapCancel,
+            onLongPress: widget.onLongPress,
+            child: Container(
+              margin: EdgeInsets.symmetric(
+                horizontal: widget.isTablet ? 16.0 : 12.0,
+                vertical: widget.isTablet ? 8.0 : 6.0,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: _isPressed ? 0.08 : 0.12),
+                    blurRadius: _isPressed ? 8 : 12,
+                    offset: Offset(0, _isPressed ? 2 : 4),
+                    spreadRadius: _isPressed ? 0 : 1,
+                  ),
+                ],
+                border: Border.all(
+                  color: Colors.grey[100]!,
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(widget.isTablet ? 16.0 : 12.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Product Image Section
+                    Stack(
+                      children: [
+                        Container(
+                          width: widget.isTablet ? 120.0 : 100.0,
+                          height: widget.isTablet ? 120.0 : 100.0,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            color: const Color(0xFFF3F4F6),
+                          ),
+                          child: widget.product.imageUrl != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Image.network(
+                                    widget.product.imageUrl!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        _buildProductPlaceholder(),
+                                  ),
+                                )
+                              : _buildProductPlaceholder(),
+                        ),
+                        // Discount Badge
+                        if (widget.hasOffer)
+                          Positioned(
+                            top: 6,
+                            left: 6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withValues(alpha: 0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.local_offer,
+                                    color: Colors.white,
+                                    size: 12,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${widget.product.bestOfferPercent.round()}% OFF',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(width: widget.isTablet ? 16 : 12),
+                    // Content Section
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Product Name
+                              Text(
+                                widget.product.name,
+                                style: TextStyle(
+                                  fontSize: widget.isTablet ? 17 : 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1F2937),
+                                  height: 1.3,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              // Shop Name
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.store,
+                                    size: widget.isTablet ? 16 : 14,
+                                    color: const Color(0xFF2979FF),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      widget.product.shopName,
+                                      style: TextStyle(
+                                        fontSize: widget.isTablet ? 14 : 13,
+                                        color: const Color(0xFF6B7280),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              // Rating and Distance
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.star,
+                                    size: widget.isTablet ? 16 : 14,
+                                    color: Colors.amber[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    widget.product.shopRating.toStringAsFixed(1),
+                                    style: TextStyle(
+                                      fontSize: widget.isTablet ? 13 : 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF6B7280),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Icon(
+                                    Icons.location_on,
+                                    size: widget.isTablet ? 16 : 14,
+                                    color: Colors.grey[500],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    widget.product.distanceKm < 1
+                                        ? '${(widget.product.distanceKm * 1000).round()}m'
+                                        : '${widget.product.distanceKm.toStringAsFixed(1)}km',
+                                    style: TextStyle(
+                                      fontSize: widget.isTablet ? 13 : 12,
+                                      color: const Color(0xFF6B7280),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          // Price and Action Button
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Original Price (if offer exists)
+                                  if (widget.hasOffer && widget.product.price > 0)
+                                    Text(
+                                      '₹${widget.product.price.toStringAsFixed(0)}',
+                                      style: TextStyle(
+                                        fontSize: widget.isTablet ? 13 : 12,
+                                        color: const Color(0xFF9CA3AF),
+                                        decoration: TextDecoration.lineThrough,
+                                      ),
+                                    ),
+                                  if (widget.hasOffer && widget.product.price > 0)
+                                    const SizedBox(height: 2),
+                                  // Discounted Price
+                                  Text(
+                                    '₹${widget.discountedPrice.toStringAsFixed(0)}',
+                                    style: TextStyle(
+                                      fontSize: widget.isTablet ? 22 : 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF10B981),
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: widget.isTablet ? 14 : 12,
+                                  vertical: widget.isTablet ? 10 : 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF2979FF), Color(0xFF1E88E5)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF2979FF).withValues(alpha: 0.3),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'View',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: widget.isTablet ? 13 : 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.arrow_forward,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProductPlaceholder() {
+    return Container(
+      color: const Color(0xFFF3F4F6),
+      child: Center(
+        child: Icon(
+          Icons.image_outlined,
+          color: Colors.grey[400],
+          size: widget.isTablet ? 40 : 36,
+        ),
+      ),
+    );
+  }
+}
 

@@ -65,6 +65,11 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
   latlng.LatLng? _customDestination;
   StreamSubscription<Position>? _positionSub;
   bool _followUser = true;
+  
+  // Navigation tracking
+  double? _userHeading; // User's current heading in degrees (0-360)
+  final List<latlng.LatLng> _locationHistory = []; // Track recent positions for heading calculation
+  Map<String, dynamic>? _nextTurnInstruction; // Current/upcoming turn instruction
   late final AnimationController _pulseController;
   late final Animation<double> _pulse;
   late final AnimationController _recommendController;
@@ -140,41 +145,57 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       if (widget.shopsOverride != null && widget.shopsOverride!.isNotEmpty) {
         _shops = widget.shopsOverride!;
         _updateMarkers();
-        // If a specific destination was provided, draw route immediately
-        if (widget.routeToShop != null && _currentLocation != null) {
-          _selectedShop = widget.routeToShop!;
-          _drawRouteTo(widget.routeToShop!);
-        }
-        // If no specific route is requested, emphasize the recommended shop (highest visitPriorityScore)
-        if (widget.routeToShop == null) {
-          final Shop best = _shops.reduce((a, b) => a.visitPriorityScore >= b.visitPriorityScore ? a : b);
-          try {
-            _mapController.move(latlng.LatLng(best.latitude, best.longitude), MapConfig.defaultZoom);
-          } catch (_) {}
-        }
-        // If asked to draw routes for all, draw to up to 5 closest by distance
-        if (widget.drawRoutesForAll && _currentLocation != null) {
-          final List<Shop> sorted = List<Shop>.from(_shops);
-          sorted.sort((a, b) => _haversineMeters(_toLL(a), _currentLocation!).compareTo(_haversineMeters(_toLL(b), _currentLocation!)));
-          final List<Shop> subset = sorted.take(5).toList();
-          // Draw a combined polyline by concatenating individual routes start->shop
-          _routePolyline.clear();
-          for (final shop in subset) {
-            await RoutingService.getRoute(start: _currentLocation!, end: _toLL(shop)).then((route) {
-              if (route != null && route.points.length >= 2) {
-                _routePolyline.addAll(route.points);
-              } else {
-                _routePolyline..add(_currentLocation!)..add(_toLL(shop));
-              }
-            }).catchError((_) {
-              _routePolyline..add(_currentLocation!)..add(_toLL(shop));
-            });
+        
+        // Wait a bit for map to initialize before fitting view
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (!mounted) return;
+          
+          // If a specific destination was provided, draw route immediately if location is available
+          if (widget.routeToShop != null && _currentLocation != null) {
+            _selectedShop = widget.routeToShop!;
+            _drawRouteTo(_selectedShop!);
           }
-          if (mounted) {
-            setState(() {});
-            _fitRouteToView();
+          // If routeToShop is set but location not yet available, it will be drawn when location becomes available (in _startPositionStream)
+          // If asked to draw routes for all shops
+          else if (widget.drawRoutesForAll && _currentLocation != null) {
+            final List<Shop> sorted = List<Shop>.from(_shops);
+            sorted.sort((a, b) => _haversineMeters(_toLL(a), _currentLocation!).compareTo(_haversineMeters(_toLL(b), _currentLocation!)));
+            final List<Shop> subset = sorted.take(5).toList();
+            // Draw routes to up to 5 closest shops
+            _routePolyline.clear();
+            for (final shop in subset) {
+              RoutingService.getRoute(start: _currentLocation!, end: _toLL(shop)).then((route) {
+                if (!mounted) return;
+                if (route != null && route.points.length >= 2) {
+                  setState(() {
+                    _routePolyline.addAll(route.points);
+                  });
+                } else {
+                  setState(() {
+                    _routePolyline..add(_currentLocation!)..add(_toLL(shop));
+                  });
+                }
+                // Fit view after routes are drawn
+                if (mounted) {
+                  _fitAllShopsToView();
+                }
+              }).catchError((_) {
+                if (mounted) {
+                  setState(() {
+                    _routePolyline..add(_currentLocation!)..add(_toLL(shop));
+                  });
+                  _fitAllShopsToView();
+                }
+              });
+            }
+            // Fit view immediately (will update when routes load)
+            _fitAllShopsToView();
           }
-        }
+          // If no specific route requested, fit all shops in view
+          else if (widget.routeToShop == null) {
+            _fitAllShopsToView();
+          }
+        });
       }
     } catch (e) {
       debugPrint('Error initializing map: $e');
@@ -350,9 +371,21 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
         _currentLocation = location;
         _followUser = true;
       });
-      _mapController.move(location, 16.0);
+      // Use smooth animation for better UX (like Google Maps)
+      try {
+        _mapController.move(location, 16.0);
+      } catch (_) {
+        _mapController.move(location, MapConfig.defaultZoom);
+      }
       if (_selectedShop != null) {
         _drawRouteTo(_selectedShop!);
+      } else if (_shops.isNotEmpty && !widget.drawRoutesForAll) {
+        // If shops are shown, refit view to include user location
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) {
+            _fitAllShopsToView();
+          }
+        });
       }
     }
   }
@@ -362,7 +395,44 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       setState(() {
         _followUser = true;
       });
-      _mapController.move(_currentLocation!, MapConfig.defaultZoom);
+      // Use higher zoom level for better view of user location (like Google Maps)
+      try {
+        _mapController.move(_currentLocation!, 16.0);
+      } catch (_) {
+        _mapController.move(_currentLocation!, MapConfig.defaultZoom);
+      }
+    }
+  }
+  
+  void _fitAllShopsToView() {
+    if (_shops.isEmpty) return;
+    
+    // Create bounds from all shops
+    final bounds = LatLngBounds(
+      latlng.LatLng(_shops.first.latitude, _shops.first.longitude),
+      latlng.LatLng(_shops.first.latitude, _shops.first.longitude),
+    );
+    
+    // Extend bounds to include all shops
+    for (final shop in _shops) {
+      bounds.extend(latlng.LatLng(shop.latitude, shop.longitude));
+    }
+    
+    // Include user location if available for better context
+    if (_currentLocation != null) {
+      bounds.extend(_currentLocation!);
+    }
+    
+    try {
+      _mapController.fitCamera(CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.fromLTRB(80, 120, 80, 200), // Extra padding for controls
+      ));
+    } catch (_) {
+      // Fallback: center on first shop with default zoom
+      if (_shops.isNotEmpty) {
+        _mapController.move(latlng.LatLng(_shops.first.latitude, _shops.first.longitude), MapConfig.defaultZoom);
+      }
     }
   }
 
@@ -371,7 +441,17 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       _isNavigating = true;
       _showDirectionsPanel = false; // hide menu after starting navigation
       _followUser = true; // follow user location
+      _nextTurnInstruction = null; // Reset turn instructions
+      _locationHistory.clear(); // Clear location history for fresh heading calculation
+      _userHeading = null; // Reset heading
     });
+
+    // Restart position stream with better accuracy for navigation
+    if (_currentLocation != null) {
+      _startPositionStream();
+      // Immediately update turn instructions
+      _updateTurnByTurnInstructions(_currentLocation!);
+    }
 
     // Center camera on current user immediately
     if (_currentLocation != null) {
@@ -393,10 +473,16 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     setState(() {
       _isNavigating = false;
       _showDirectionsPanel = false;
+      _nextTurnInstruction = null;
       _routePolyline.clear();
       _routeArrows.clear();
       _routeLabels.clear();
     });
+    
+    // Restart position stream with standard accuracy
+    if (_currentLocation != null) {
+      _startPositionStream();
+    }
   }
 
   void _onRouteModeChanged() {
@@ -576,33 +662,77 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
 
   void _startPositionStream() {
     _positionSub?.cancel();
-    const LocationSettings settings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Increased from 5 to reduce updates
+    // Use best accuracy for navigation, high accuracy for regular tracking
+    final LocationSettings settings = LocationSettings(
+      accuracy: _isNavigating ? LocationAccuracy.best : LocationAccuracy.high,
+      distanceFilter: _isNavigating ? 5 : 10, // More frequent updates when navigating
+      timeLimit: _isNavigating ? const Duration(seconds: 5) : const Duration(seconds: 10),
     );
     _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen((Position pos) {
       final latlng.LatLng newLoc = latlng.LatLng(pos.latitude, pos.longitude);
       if (!mounted) return;
       
       double distance = 0.0;
-      // Only update if location changed significantly (more than 10 meters)
-      if (_currentLocation != null) {
-        distance = _haversineMeters(_currentLocation!, newLoc);
-        if (distance < 10) return; // Skip update if movement is less than 10 meters
+      latlng.LatLng? previousLocation = _currentLocation;
+      
+      // Only update if location changed significantly
+      if (previousLocation != null) {
+        distance = _haversineMeters(previousLocation, newLoc);
+        // Use smaller threshold when navigating for better tracking
+        final threshold = _isNavigating ? 5.0 : 10.0;
+        if (distance < threshold) return;
+        
+        // Calculate heading from movement
+        _calculateUserHeading(previousLocation, newLoc);
+      }
+      
+      // Update location history (keep last 10 positions for smoothing)
+      _locationHistory.add(newLoc);
+      if (_locationHistory.length > 10) {
+        _locationHistory.removeAt(0);
       }
       
       setState(() {
         _currentLocation = newLoc;
       });
-      if (_followUser) {
-        try {
-          _mapController.move(newLoc, MapConfig.defaultZoom);
-        } catch (_) {}
-      }
-      // Only redraw routes if user is following location and moved significantly
-      if (_followUser && _selectedShop != null && distance >= 10) {
+      
+      // If routeToShop was provided but route wasn't drawn yet (location wasn't available initially), draw it now
+      if (widget.routeToShop != null && _selectedShop == null && _routePolyline.isEmpty) {
+        _selectedShop = widget.routeToShop!;
         _drawRouteTo(_selectedShop!);
-      } else if (_followUser && _customDestination != null && distance >= 10) {
+      }
+      
+      // When navigating, always follow user and keep map centered
+      if (_isNavigating) {
+        _followUser = true;
+        try {
+          // Use bearing if available for smoother camera movement
+          if (_userHeading != null) {
+            _mapController.move(newLoc, _mapController.camera.zoom);
+            // Optionally rotate map to match heading (like Google Maps)
+            // This would require map rotation support in flutter_map
+          } else {
+            _mapController.move(newLoc, _mapController.camera.zoom);
+          }
+        } catch (_) {}
+        
+        // Update turn-by-turn instructions
+        _updateTurnByTurnInstructions(newLoc);
+      } else if (_followUser) {
+        try {
+          // Maintain current zoom when following user (unless zoom is too far out)
+          final currentZoom = _mapController.camera.zoom;
+          final zoom = currentZoom < 12.0 ? 16.0 : currentZoom;
+          _mapController.move(newLoc, zoom);
+        } catch (_) {
+          _mapController.move(newLoc, MapConfig.defaultZoom);
+        }
+      }
+      
+      // Redraw routes when navigating and moved significantly
+      if (_followUser && _selectedShop != null && distance >= (_isNavigating ? 5 : 10)) {
+        _drawRouteTo(_selectedShop!);
+      } else if (_followUser && _customDestination != null && distance >= (_isNavigating ? 5 : 10)) {
         _drawRouteToPoint(_customDestination!);
       }
       
@@ -612,6 +742,97 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       } else if (_isNavigating && _customDestination != null) {
         _checkForArrivalAtPoint(newLoc);
       }
+    });
+  }
+  
+  void _calculateUserHeading(latlng.LatLng from, latlng.LatLng to) {
+    // Calculate bearing from previous to current location
+    final bearingRad = _bearingRadians(from, to);
+    final bearingDeg = (bearingRad * 180.0 / 3.141592653589793);
+    // Normalize to 0-360
+    final normalizedHeading = (bearingDeg + 360.0) % 360.0;
+    
+    setState(() {
+      _userHeading = normalizedHeading;
+    });
+  }
+  
+  void _updateTurnByTurnInstructions(latlng.LatLng currentLoc) {
+    if (_routePolyline.length < 2) return;
+    
+    // Find the closest point on the route to current location
+    int closestIndex = 0;
+    double minDistance = double.infinity;
+    for (int i = 0; i < _routePolyline.length; i++) {
+      final distance = _haversineMeters(currentLoc, _routePolyline[i]);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = i;
+      }
+    }
+    
+    // Find next turn ahead (within 200m)
+    for (int i = closestIndex + 1; i < _routePolyline.length - 1; i++) {
+      final distance = _haversineMeters(currentLoc, _routePolyline[i]);
+      if (distance > 200) break; // Only show turns within 200m
+      
+      final prev = _routePolyline[i - 1];
+      final curr = _routePolyline[i];
+      final next = _routePolyline[i + 1];
+      
+      final bearing1 = _bearingRadians(prev, curr) * 180.0 / 3.141592653589793;
+      final bearing2 = _bearingRadians(curr, next) * 180.0 / 3.141592653589793;
+      
+      double delta = (bearing2 - bearing1);
+      while (delta > 180) { delta -= 360; }
+      while (delta < -180) { delta += 360; }
+      
+      final absDelta = delta.abs();
+      
+      if (absDelta >= 30.0) { // Turn detected
+        String instruction;
+        IconData icon;
+        Color color;
+        
+        if (absDelta >= 150.0) {
+          instruction = delta > 0 ? 'U-turn right' : 'U-turn left';
+          icon = delta > 0 ? Icons.u_turn_right : Icons.u_turn_left;
+          color = const Color(0xFFEF4444);
+        } else if (absDelta >= 90.0) {
+          instruction = delta > 0 ? 'Sharp right' : 'Sharp left';
+          icon = delta > 0 ? Icons.turn_right : Icons.turn_left;
+          color = const Color(0xFFFF6B35);
+        } else if (absDelta >= 45.0) {
+          instruction = delta > 0 ? 'Turn right' : 'Turn left';
+          icon = delta > 0 ? Icons.turn_right : Icons.turn_left;
+          color = const Color(0xFF2979FF);
+        } else {
+          instruction = delta > 0 ? 'Slight right' : 'Slight left';
+          icon = delta > 0 ? Icons.subdirectory_arrow_right : Icons.subdirectory_arrow_left;
+          color = const Color(0xFF2979FF);
+        }
+        
+        setState(() {
+          _nextTurnInstruction = {
+            'instruction': instruction,
+            'icon': icon,
+            'color': color,
+            'distance': distance,
+            'point': curr,
+          };
+        });
+        return;
+      }
+    }
+    
+    // No turn found ahead, show "Continue straight"
+    setState(() {
+      _nextTurnInstruction = {
+        'instruction': 'Continue straight',
+        'icon': Icons.straight,
+        'color': const Color(0xFF2979FF),
+        'distance': null,
+      };
     });
   }
 
@@ -839,6 +1060,121 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     });
   }
 
+  Widget _buildNavigationBanner(bool isTablet) {
+    final instruction = _nextTurnInstruction!;
+    final distance = instruction['distance'] as double?;
+    
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      color: Colors.white,
+      child: Container(
+        padding: EdgeInsets.all(isTablet ? 18 : 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: (instruction['color'] as Color).withValues(alpha: 0.3),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Turn icon
+            Container(
+              width: isTablet ? 56 : 48,
+              height: isTablet ? 56 : 48,
+              decoration: BoxDecoration(
+                color: (instruction['color'] as Color).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                instruction['icon'] as IconData,
+                color: instruction['color'] as Color,
+                size: isTablet ? 28 : 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Instruction text and distance
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    instruction['instruction'] as String,
+                    style: TextStyle(
+                      fontSize: isTablet ? 20 : 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  if (distance != null)
+                    Text(
+                      'In ${_formatDistanceKm(distance / 1000.0)}',
+                      style: TextStyle(
+                        fontSize: isTablet ? 14 : 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Continue on current route',
+                      style: TextStyle(
+                        fontSize: isTablet ? 14 : 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Remaining distance to destination
+            if (_currentLocation != null && _selectedShop != null)
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isTablet ? 12 : 10,
+                  vertical: isTablet ? 8 : 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2979FF).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatDistanceKm(_haversineMeters(_currentLocation!, latlng.LatLng(_selectedShop!.latitude, _selectedShop!.longitude)) / 1000.0),
+                      style: TextStyle(
+                        fontSize: isTablet ? 16 : 14,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF2979FF),
+                      ),
+                    ),
+                    Text(
+                      'to go',
+                      style: TextStyle(
+                        fontSize: isTablet ? 10 : 9,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSearchContent(bool isTablet) {
     final TextEditingController controller = TextEditingController();
     return Column(
@@ -1036,33 +1372,42 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
                 MarkerLayer(markers: [
                   Marker(
                     point: _currentLocation!,
-                    width: 32,
-                    height: 32,
+                    width: 40,
+                    height: 40,
                     child: ScaleTransition(
                       scale: _pulse,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2979FF),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF2979FF).withValues(alpha: 0.4), 
-                              blurRadius: 12, 
-                              offset: const Offset(0, 4),
-                              spreadRadius: 2,
-                            ),
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15), 
-                              blurRadius: 8, 
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 16,
+                      child: Transform.rotate(
+                        angle: _userHeading != null ? (_userHeading! - 90) * 3.141592653589793 / 180.0 : 0,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2979FF),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2979FF).withValues(alpha: 0.4), 
+                                blurRadius: 12, 
+                                offset: const Offset(0, 4),
+                                spreadRadius: 2,
+                              ),
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15), 
+                                blurRadius: 8, 
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: _isNavigating
+                              ? const Icon(
+                                  Icons.navigation,
+                                  color: Colors.white,
+                                  size: 20,
+                                )
+                              : const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
                         ),
                       ),
                     ),
@@ -1206,6 +1551,15 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
             ),
           ),
 
+          // Navigation Banner (shows turn-by-turn instructions)
+          if (_isNavigating && _nextTurnInstruction != null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + (isTablet ? 80 : 60),
+              left: isTablet ? 88 : 80, // Add left margin to avoid overlapping with back button (48px button + 20px margin + buffer)
+              right: isTablet ? 88 : 80, // Add right margin to avoid overlapping with map controls (48px button + 20px margin + buffer)
+              child: _buildNavigationBanner(isTablet),
+            ),
+          
           // Directions Panel
           if (_showDirectionsPanel && _routePolyline.length >= 2)
             Positioned(

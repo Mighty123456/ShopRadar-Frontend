@@ -171,18 +171,21 @@ class FeaturedOffersService {
   }
 
   // Refresh offers from API
-  Future<void> _refreshOffers() async {
+  Future<void> _refreshOffers({double? latitude, double? longitude}) async {
     try {
-      final offers = await fetchFeaturedOffers(limit: 10);
-      if (offers.isNotEmpty) {
-        _offers = offers;
-        if (!_offersController.isClosed) {
-          _offersController.add(_offers);
-          debugPrint('Refreshed offers via polling: ${offers.length} offers');
-        }
+      final offers = await fetchFeaturedOffers(
+        limit: 10,
+        latitude: latitude,
+        longitude: longitude,
+        radius: 8000, // 8km radius
+      );
+      _offers = offers;
+      if (!_offersController.isClosed) {
+        _offersController.add(_offers);
+        debugPrint('[Featured Offers] Refreshed offers via polling: ${offers.length} offers');
       }
     } catch (e) {
-      debugPrint('Error refreshing offers: $e');
+      debugPrint('[Featured Offers] Error refreshing offers: $e');
     }
   }
 
@@ -191,7 +194,7 @@ class FeaturedOffersService {
   Future<List<FeaturedOffer>> fetchFeaturedOffers({
     double? latitude,
     double? longitude,
-    double radius = 8000, // 8km radius for featured offers
+    double radius = 8000, // 8km radius for featured offers (8000 meters)
     int limit = 10,
   }) async {
     try {
@@ -199,34 +202,59 @@ class FeaturedOffersService {
       
       if (latitude != null && longitude != null) {
         url += '&latitude=$latitude&longitude=$longitude';
+        debugPrint('[Featured Offers] Fetching with location: lat=$latitude, lng=$longitude, radius=${radius.toInt()}m');
+      } else {
+        debugPrint('[Featured Offers] Fetching without location filter (radius=${radius.toInt()}m)');
       }
 
+      debugPrint('[Featured Offers] API URL: $url');
       final response = await ApiService.get(url);
+      
+      debugPrint('[Featured Offers] Response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        debugPrint('[Featured Offers] Response success: ${data['success']}');
+        
         if (data['success'] == true) {
           final offersJson = data['data']['offers'] as List<dynamic>;
+          debugPrint('[Featured Offers] Received ${offersJson.length} offers from API');
+          
+          // Don't filter by isActive here - backend already filters active offers
+          // Only filter out invalid offers
           final offers = offersJson
-              .map((json) => FeaturedOffer.fromJson(json))
-              .where((offer) => offer.isActive)
+              .map((json) {
+                try {
+                  return FeaturedOffer.fromJson(json);
+                } catch (e) {
+                  debugPrint('[Featured Offers] Error parsing offer: $e');
+                  return null;
+                }
+              })
+              .where((offer) => offer != null && offer.isActive)
+              .cast<FeaturedOffer>()
               .toList();
+          
+          debugPrint('[Featured Offers] Parsed ${offers.length} valid active offers');
           
           _offers = offers;
           if (!_offersController.isClosed) {
             _offersController.add(_offers);
           }
           
-          debugPrint('Fetched ${offers.length} featured offers');
+          debugPrint('[Featured Offers] Successfully fetched ${offers.length} featured offers');
           return offers;
         } else {
-          throw Exception(data['message'] ?? 'Failed to fetch offers');
+          final errorMsg = data['message'] ?? 'Failed to fetch offers';
+          debugPrint('[Featured Offers] API returned error: $errorMsg');
+          throw Exception(errorMsg);
         }
       } else {
+        debugPrint('[Featured Offers] HTTP error ${response.statusCode}: ${response.body}');
         throw Exception('HTTP ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      debugPrint('Error fetching featured offers: $e');
+      debugPrint('[Featured Offers] Error fetching featured offers: $e');
       return [];
     }
   }

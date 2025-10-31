@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/shop.dart';
 import '../services/favorite_shops_service.dart';
 import '../services/shop_offers_service.dart' as offers_service;
@@ -27,16 +28,38 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
   double _myRating = 4.0;
   final TextEditingController _reviewController = TextEditingController();
   bool _isFavorite = false;
+  bool _isDescriptionExpanded = false;
   
   // Offer-related state
   List<offers_service.ShopOffer> _offers = [];
   bool _isLoadingOffers = true;
   String? _offersError;
+  
+  // Animation controllers
+  late AnimationController _fadeController;
+  late AnimationController _scaleController;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeIn),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _scaleController, curve: Curves.easeInOut),
+    );
+    _fadeController.forward();
     _loadReviews();
     _loadOffers();
     _checkFavoriteStatus();
@@ -52,11 +75,15 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
   }
 
   Future<void> _makePhoneCall() async {
+    HapticFeedback.mediumImpact();
     final phoneNumber = widget.shop.phone;
     if (phoneNumber.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Phone number not available')),
-      );
+      HapticFeedback.heavyImpact();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Phone number not available')),
+        );
+      }
       return;
     }
 
@@ -68,6 +95,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
       if (await canLaunchUrl(phoneUri)) {
         await launchUrl(phoneUri);
       } else {
+        HapticFeedback.heavyImpact();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Cannot make phone calls on this device')),
@@ -75,6 +103,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
         }
       }
     } catch (e) {
+      HapticFeedback.heavyImpact();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error making phone call: $e')),
@@ -83,15 +112,86 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
     }
   }
 
+  Future<void> _copyToClipboard(String text, String label) async {
+    HapticFeedback.lightImpact();
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Text('$label copied to clipboard'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _shareShop() async {
+    HapticFeedback.mediumImpact();
+    final shareText = 'Check out ${widget.shop.name}!\n\n'
+        '📍 ${widget.shop.address}\n'
+        '📞 ${widget.shop.phone}\n'
+        '⭐ Rating: ${widget.shop.rating}/5\n\n'
+        'Found on ShopRadar';
+    
+    try {
+      await Clipboard.setData(ClipboardData(text: shareText));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.share, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Shop details copied! Share it anywhere'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF2979FF),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      HapticFeedback.heavyImpact();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to share: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _toggleFavorite() async {
+    HapticFeedback.mediumImpact();
+    _scaleController.forward().then((_) => _scaleController.reverse());
+    
     if (_isFavorite) {
       final success = await FavoriteShopsService.removeFromFavorites(widget.shop.id);
       if (success && mounted) {
         setState(() {
           _isFavorite = false;
         });
+        HapticFeedback.lightImpact();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Removed from favorites')),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.favorite_border, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Removed from favorites'),
+              ],
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } else {
@@ -100,8 +200,20 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
         setState(() {
           _isFavorite = true;
         });
+        HapticFeedback.heavyImpact();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Added to favorites')),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.favorite, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Added to favorites'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -111,6 +223,8 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
   void dispose() {
     _tabController.dispose();
     _reviewController.dispose();
+    _fadeController.dispose();
+    _scaleController.dispose();
     super.dispose();
   }
 
@@ -191,12 +305,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                   color: Colors.white,
                   size: isTablet ? 24 : 20,
                 ),
-                onPressed: () {
-                  // TODO: Share shop
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Share functionality coming soon!')),
-                  );
-                },
+                onPressed: _shareShop,
                 tooltip: 'Share shop',
               ),
             ],
@@ -357,33 +466,66 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                   
                   const SizedBox(height: 16),
                   
-                  // Address
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.location_on, color: Colors.grey[600], size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.shop.address,
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
+                  // Address - Interactive
+                  InkWell(
+                    onTap: () => _copyToClipboard(widget.shop.address, 'Address'),
+                    onLongPress: () => _copyToClipboard(widget.shop.address, 'Address'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.location_on, color: Colors.grey[600], size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.shop.address,
+                                  style: TextStyle(color: Colors.grey[600]),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Tap to copy',
+                                  style: TextStyle(
+                                    color: Colors.grey[400],
+                                    fontSize: 10,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.copy, color: Colors.grey[400], size: 16),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                   
                   const SizedBox(height: 8),
                   
-                  // Phone
-                  Row(
-                    children: [
-                      Icon(Icons.phone, color: Colors.grey[600], size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.shop.phone,
-                        style: TextStyle(color: Colors.grey[600]),
+                  // Phone - Interactive
+                  InkWell(
+                    onTap: () => _copyToClipboard(widget.shop.phone, 'Phone number'),
+                    onLongPress: () => _copyToClipboard(widget.shop.phone, 'Phone number'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.phone, color: Colors.grey[600], size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            widget.shop.phone,
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                          const Spacer(),
+                          Icon(Icons.copy, color: Colors.grey[400], size: 16),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                   
                   const SizedBox(height: 8),
@@ -402,40 +544,61 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                   
                   const SizedBox(height: 16),
                   
-                  // Action buttons
+                  // Action buttons - Interactive with haptics
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => MapScreenFree(
-                                  shopsOverride: [widget.shop],
-                                  routeToShop: widget.shop,
+                        child: ScaleTransition(
+                          scale: _scaleAnimation,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              HapticFeedback.mediumImpact();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => MapScreenFree(
+                                    shopsOverride: [widget.shop],
+                                    routeToShop: widget.shop,
+                                  ),
                                 ),
+                              );
+                            },
+                            onLongPress: () {
+                              HapticFeedback.heavyImpact();
+                            },
+                            icon: const Icon(Icons.directions),
+                            label: const Text('Directions'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2979FF),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            );
-                          },
-                          icon: const Icon(Icons.directions),
-                          label: const Text('Directions'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2979FF),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _makePhoneCall,
-                          icon: const Icon(Icons.phone),
-                          label: const Text('Call'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF2979FF),
-                            side: const BorderSide(color: Color(0xFF2979FF)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: ScaleTransition(
+                          scale: _scaleAnimation,
+                          child: OutlinedButton.icon(
+                            onPressed: _makePhoneCall,
+                            onLongPress: () {
+                              HapticFeedback.lightImpact();
+                              _copyToClipboard(widget.shop.phone, 'Phone number');
+                            },
+                            icon: const Icon(Icons.phone),
+                            label: const Text('Call'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF2979FF),
+                              side: const BorderSide(color: Color(0xFF2979FF), width: 1.5),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -489,15 +652,18 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
             ),
           ),
           
-          // Tab content
+          // Tab content with fade animation
           SliverFillRemaining(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOffersTab(),
-                _buildReviewsTab(),
-                _buildInfoTab(),
-              ],
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildOffersTab(),
+                  _buildReviewsTab(),
+                  _buildInfoTab(),
+                ],
+              ),
             ),
           ),
         ],
@@ -625,19 +791,51 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Description
-          if (widget.shop.description != null) ...[
-            const Text(
-              'About',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+          // Description - Expandable
+          if (widget.shop.description != null && widget.shop.description!.isNotEmpty) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'About',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (widget.shop.description!.length > 100)
+                  TextButton.icon(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      setState(() {
+                        _isDescriptionExpanded = !_isDescriptionExpanded;
+                      });
+                    },
+                    icon: Icon(
+                      _isDescriptionExpanded ? Icons.expand_less : Icons.expand_more,
+                      size: 18,
+                    ),
+                    label: Text(_isDescriptionExpanded ? 'Less' : 'More'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF2979FF),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
-            Text(
-              widget.shop.description!,
-              style: TextStyle(color: Colors.grey[600]),
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 300),
+              crossFadeState: _isDescriptionExpanded || widget.shop.description!.length <= 100
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: Text(
+                '${widget.shop.description!.substring(0, widget.shop.description!.length > 100 ? 100 : widget.shop.description!.length)}...',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+              secondChild: Text(
+                widget.shop.description!,
+                style: TextStyle(color: Colors.grey[600], height: 1.5),
+              ),
             ),
             const SizedBox(height: 24),
           ],
@@ -795,10 +993,24 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
-            // TODO: Navigate to offer details or product page
+            HapticFeedback.mediumImpact();
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Viewing offer: ${offer.title}')),
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.local_offer, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('Viewing offer: ${offer.title}')),
+                  ],
+                ),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
+              ),
             );
+          },
+          onLongPress: () {
+            HapticFeedback.heavyImpact();
+            _shareShop();
           },
           child: Padding(
             padding: EdgeInsets.all(isTablet ? 20 : 16),
