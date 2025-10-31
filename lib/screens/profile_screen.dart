@@ -12,6 +12,9 @@ import '../widgets/custom_button.dart';
 import '../widgets/animated_message_dialog.dart';
 import '../services/profile_service.dart';
 import '../services/auth_service.dart';
+import '../services/recent_search_service.dart';
+import '../services/favorite_shops_service.dart';
+import '../services/api_service.dart';
 import 'package:flutter/foundation.dart';
 import '../utils/onboarding_utils.dart';
 
@@ -44,6 +47,13 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   
   // Interactive states
   bool _showStats = false;
+  
+  // Activity stats
+  int _searchCount = 0;
+  int _favoritesCount = 0;
+  int _reviewsCount = 0;
+  int _visitsCount = 0;
+  bool _isLoadingActivity = false;
   
   // Image picker and profile image
   final ImagePicker _imagePicker = ImagePicker();
@@ -136,6 +146,9 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
           
           // Load existing profile image if available
           await _loadExistingProfileImage();
+          
+          // Load activity data after user is loaded
+          _loadActivityData();
         } else {
           setState(() {
             _isLoadingUser = false;
@@ -285,11 +298,113 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     HapticFeedback.lightImpact();
     
     try {
-      await _loadUserData();
+      await Future.wait([
+        _loadUserData(),
+        _loadActivityData(),
+      ]);
       // Add a small delay for better UX
       await Future.delayed(const Duration(milliseconds: 500));
     } catch (e) {
       // Handle error silently or show a message
+    }
+  }
+
+  Future<void> _loadActivityData() async {
+    if (_isLoadingActivity) return;
+    
+    setState(() {
+      _isLoadingActivity = true;
+    });
+
+    try {
+      // Load search count from local storage
+      final recentSearches = await RecentSearchService.getRecentSearches();
+      
+      // Load favorites count from local storage
+      final favoritesCount = await FavoriteShopsService.getFavoriteCount();
+      
+      // Load reviews count from API
+      int reviewsCount = 0;
+      if (_user != null) {
+        try {
+          final response = await ApiService.get('/api/reviews/my-reviews');
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['success'] == true && data['data'] != null) {
+              final reviews = data['data']['reviews'] as List?;
+              reviewsCount = reviews?.length ?? 0;
+              // If pagination exists, get total count
+              if (data['data']['pagination'] != null) {
+                reviewsCount = data['data']['pagination']['totalReviews'] ?? reviewsCount;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error loading reviews count: $e');
+          // Fallback: try to get count without loading all reviews
+          try {
+            final response = await ApiService.get('/api/reviews/my-reviews?limit=1');
+            if (response.statusCode == 200) {
+              final data = jsonDecode(response.body);
+              if (data['success'] == true && data['data']?['pagination'] != null) {
+                reviewsCount = data['data']['pagination']['totalReviews'] ?? 0;
+              }
+            }
+          } catch (e2) {
+            debugPrint('Error loading reviews count (fallback): $e2');
+          }
+        }
+      }
+      
+      // Load visits count (shop views) from UserBehavior or use cached shops count
+      int visitsCount = 0;
+      if (_user != null) {
+        try {
+          // Try to get user analytics which includes view_shop behavior
+          final response = await ApiService.get('/api/ml/analytics?timeRange=365');
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['success'] == true && data['data'] != null) {
+              final behaviors = data['data']['behaviors'] as List?;
+              if (behaviors != null) {
+                // Count unique shop views
+                final shopViews = behaviors.where((b) => 
+                  b['behaviorType'] == 'view_shop' || 
+                  b['behaviorType'] == 'visit_shop'
+                ).toList();
+                final uniqueShopIds = <String>{};
+                for (var behavior in shopViews) {
+                  if (behavior['targetId'] != null) {
+                    uniqueShopIds.add(behavior['targetId'].toString());
+                  }
+                }
+                visitsCount = uniqueShopIds.length;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error loading visits count: $e');
+          // Fallback: use favorites count as a proxy for visited shops
+          visitsCount = favoritesCount;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _searchCount = recentSearches.length;
+          _favoritesCount = favoritesCount;
+          _reviewsCount = reviewsCount;
+          _visitsCount = visitsCount > 0 ? visitsCount : favoritesCount; // Use favorites as minimum
+          _isLoadingActivity = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading activity data: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingActivity = false;
+        });
+      }
     }
   }
 
@@ -1414,7 +1529,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                     Expanded(
                       child: _buildStatCard(
                         'Searches',
-                        '24',
+                        _isLoadingActivity ? '...' : _searchCount.toString(),
                         Icons.search_rounded,
                         const Color(0xFF2979FF),
                         isLargeTablet,
@@ -1425,7 +1540,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                     Expanded(
                       child: _buildStatCard(
                         'Favorites',
-                        '12',
+                        _isLoadingActivity ? '...' : _favoritesCount.toString(),
                         Icons.favorite_rounded,
                         const Color(0xFF2979FF),
                         isLargeTablet,
@@ -1440,7 +1555,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                     Expanded(
                       child: _buildStatCard(
                         'Reviews',
-                        '8',
+                        _isLoadingActivity ? '...' : _reviewsCount.toString(),
                         Icons.rate_review_rounded,
                         const Color(0xFF2979FF),
                         isLargeTablet,
@@ -1451,7 +1566,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                     Expanded(
                       child: _buildStatCard(
                         'Visits',
-                        '45',
+                        _isLoadingActivity ? '...' : _visitsCount.toString(),
                         Icons.location_on_rounded,
                         const Color(0xFF2979FF),
                         isLargeTablet,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/animated_message_dialog.dart';
@@ -28,6 +30,9 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   bool _isEditing = false;
   String? _editingProductId;
   bool _isLoadingProducts = false;
+  File? _productImage;
+  String? _productImageName;
+  String? _existingImageUrl; // For editing existing products
   
   List<Map<String, dynamic>> _products = [];
 
@@ -115,7 +120,8 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
       _editingProductId = product['id'];
       _productNameController.text = product['name'] ?? '';
       _brandController.text = product['brand'] ?? '';
-      _modelController.text = product['model'] ?? '';
+      // Handle both 'model' and 'itemName' fields from backend
+      _modelController.text = product['itemName'] ?? product['model'] ?? '';
       _descriptionController.text = product['description'] ?? '';
       _tagsController.text = product['tags'] ?? '';
       _priceController.text = (product['price'] ?? 0).toString();
@@ -123,6 +129,17 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
       _selectedCategory = product['category'] ?? 'Electronics';
       _selectedUnitType = product['unitType'] ?? 'Piece';
       _selectedAvailabilityStatus = product['availabilityStatus'] ?? 'In Stock';
+      _productImage = null;
+      _productImageName = null;
+      // Set existing image URL if available
+      if (product['images'] != null && product['images'] is List && (product['images'] as List).isNotEmpty) {
+        final firstImage = product['images'][0];
+        if (firstImage is Map && firstImage['url'] != null) {
+          _existingImageUrl = firstImage['url'];
+        }
+      } else {
+        _existingImageUrl = null;
+      }
     });
     _showProductDialog();
   }
@@ -138,6 +155,102 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     _selectedCategory = 'Electronics';
     _selectedUnitType = 'Piece';
     _selectedAvailabilityStatus = 'In Stock';
+    _productImage = null;
+    _productImageName = null;
+    _existingImageUrl = null;
+  }
+  
+  Future<void> _pickProductImage() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        if (file.path != null) {
+          setState(() {
+            _productImage = File(file.path!);
+            _productImageName = file.name;
+            _existingImageUrl = null; // Clear existing URL when new image is picked
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        MessageHelper.showAnimatedMessage(
+          context,
+          message: 'Error picking image: $e',
+          type: MessageType.error,
+          title: 'Image Error',
+        );
+      }
+    }
+  }
+  
+  Widget _buildImagePlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.add_photo_alternate,
+          size: 40,
+          color: Colors.grey.shade400,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Tap to add product image',
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _getProductImage(Map<String, dynamic> product) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    
+    // Check if product has images
+    if (product['images'] != null && product['images'] is List && (product['images'] as List).isNotEmpty) {
+      final firstImage = product['images'][0];
+      if (firstImage is Map && firstImage['url'] != null) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
+          child: Image.network(
+            firstImage['url'],
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Icon(
+                Icons.inventory,
+                size: isTablet ? 50 : 40,
+                color: Colors.grey[400],
+              );
+            },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              );
+            },
+          ),
+        );
+      }
+    }
+    
+    // Default placeholder icon
+    return Icon(
+      Icons.inventory,
+      size: isTablet ? 50 : 40,
+      color: Colors.grey[400],
+    );
   }
 
   void _showProductDialog() {
@@ -149,7 +262,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
           children: [
             Container(
               constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.8,
+                maxHeight: MediaQuery.of(context).size.height * 0.9,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -199,6 +312,166 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                                 }
                                 return null;
                               },
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Product Image Upload
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Product Image',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange[100],
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Text(
+                                        'Optional',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.orange,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: _pickProductImage,
+                                  child: Stack(
+                                    children: [
+                                      Container(
+                                        width: double.infinity,
+                                        height: 120,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: Colors.grey.shade300,
+                                            width: 2,
+                                            style: BorderStyle.solid,
+                                          ),
+                                          borderRadius: BorderRadius.circular(12),
+                                          color: Colors.white,
+                                        ),
+                                        child: _productImage != null
+                                            ? ClipRRect(
+                                                borderRadius: BorderRadius.circular(10),
+                                                child: Image.file(
+                                                  _productImage!,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              )
+                                            : _existingImageUrl != null
+                                                ? ClipRRect(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    child: Image.network(
+                                                      _existingImageUrl!,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context, error, stackTrace) {
+                                                        return _buildImagePlaceholder();
+                                                      },
+                                                    ),
+                                                  )
+                                                : _buildImagePlaceholder(),
+                                      ),
+                                      // Overlay to show "Tap to change" when editing with existing image
+                                      if (_isEditing && _existingImageUrl != null && _productImage == null)
+                                        Positioned.fill(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(alpha: 0.3),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Center(
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white.withValues(alpha: 0.9),
+                                                  borderRadius: BorderRadius.circular(20),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.camera_alt,
+                                                      size: 18,
+                                                      color: Colors.blue,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      'Tap to change image',
+                                                      style: TextStyle(
+                                                        color: Colors.blue,
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                if (_productImageName != null) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        size: 16,
+                                        color: Colors.green,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Selected: $_productImageName',
+                                          style: TextStyle(
+                                            color: Colors.green.shade700,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ] else if (_isEditing && _existingImageUrl != null && _productImage == null) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.image,
+                                        size: 16,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Current image. Tap above to update.',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                            fontSize: 12,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 16),
                             
@@ -522,6 +795,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
           stock: int.parse(_stockController.text),
           unitType: _selectedUnitType,
           availabilityStatus: _selectedAvailabilityStatus,
+          image: _productImage, // Include image file if a new one is selected
         );
 
         if (result['success'] == true) {
@@ -554,7 +828,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         final productData = {
           'name': _productNameController.text.trim(),
           'brand': _brandController.text.trim(),
-          'model': _modelController.text.trim(),
+          'itemName': _modelController.text.trim(), // Using itemName to match backend expectation
           'description': _descriptionController.text.trim(),
           'tags': _tagsController.text.trim(),
           'category': _selectedCategory,
@@ -562,6 +836,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
           'stock': int.parse(_stockController.text),
           'unitType': _selectedUnitType,
           'availabilityStatus': _selectedAvailabilityStatus,
+          'image': _productImage, // Include image file if selected
         };
 
         final result = await ShopService.createProductWithOffer(
@@ -943,11 +1218,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                     borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
                     color: Colors.grey[200],
                   ),
-                  child: Icon(
-                    Icons.inventory,
-                    size: isTablet ? 50 : 40,
-                    color: Colors.grey[400],
-                  ),
+                  child: _getProductImage(product),
                 ),
                 SizedBox(width: isTablet ? 20 : 16),
                 

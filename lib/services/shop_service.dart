@@ -504,6 +504,7 @@ class ShopService {
     String? unitType,
     String? availabilityStatus,
     String? status,
+    File? image, // Add image parameter
   }) async {
     try {
       debugPrint('Updating product: $productId');
@@ -521,6 +522,28 @@ class ShopService {
       if (unitType != null) updateData['unitType'] = unitType;
       if (availabilityStatus != null) updateData['availabilityStatus'] = availabilityStatus;
       if (status != null) updateData['status'] = status;
+      
+      // Upload product image if provided
+      if (image != null && category != null) {
+        debugPrint('Uploading product image for update...');
+        final imageUploadResult = await _uploadProductImage(image, category);
+        if (imageUploadResult['success'] == true) {
+          final imageData = imageUploadResult['data'];
+          if (imageData != null) {
+            updateData['image'] = imageData;
+          } else {
+            return {
+              'success': false,
+              'message': 'Image upload succeeded but no data returned',
+            };
+          }
+        } else {
+          return {
+            'success': false,
+            'message': 'Failed to upload product image: ${imageUploadResult['message']}',
+          };
+        }
+      }
       
       final response = await ApiService.put('/api/shops/products/$productId', updateData).timeout(
         const Duration(seconds: 30),

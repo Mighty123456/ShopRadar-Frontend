@@ -348,27 +348,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> with TickerPr
     );
   }
 
-  Widget _buildProductIcon() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFF2979FF).withValues(alpha: 0.1),
-            const Color(0xFF2979FF).withValues(alpha: 0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: const Icon(
-        Icons.shopping_bag,
-        color: Color(0xFF2979FF),
-        size: 32,
-      ),
-    );
-  }
-
   Widget _buildSectionHeader(String title, String subtitle, IconData icon, Color color, {Widget? action}) {
     final screenSize = MediaQuery.of(context).size;
     final isTablet = screenSize.width > 600;
