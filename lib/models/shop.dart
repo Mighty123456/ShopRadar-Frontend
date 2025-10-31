@@ -54,7 +54,7 @@ class Shop {
       isOpen: (json['isOpen'] ?? json['isLive'] ?? false) as bool,
       openingHours: _getOpeningHours(json),
       phone: (json['phone'] ?? '').toString(),
-      imageUrl: json['imageUrl']?.toString(),
+      imageUrl: json['imageUrl']?.toString() ?? (json['photoProof'] is Map ? json['photoProof']['url']?.toString() : null),
       description: json['description']?.toString(),
       amenities: (json['amenities'] as List<dynamic>?)
           ?.map((amenity) => amenity.toString())
