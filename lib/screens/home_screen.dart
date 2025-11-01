@@ -1462,7 +1462,7 @@ class _InteractiveOfferCardState extends State<_InteractiveOfferCard>
                                   // Original Price (strikethrough)
                                   if (widget.offer.product.price > 0)
                                     Text(
-                                      '\$${widget.offer.product.price.toStringAsFixed(0)}',
+                                      '₹${widget.offer.product.price.toStringAsFixed(0)}',
                                       style: TextStyle(
                                         fontSize: widget.isLargeTablet ? 12 : 11,
                                         color: const Color(0xFF9CA3AF),
@@ -1473,7 +1473,7 @@ class _InteractiveOfferCardState extends State<_InteractiveOfferCard>
                                   // Discounted Price
                                   if (widget.offer.product.price > 0)
                                     Text(
-                                      '\$${(widget.offer.discountType == 'Percentage' 
+                                      '₹${(widget.offer.discountType == 'Percentage' 
                                         ? (widget.offer.product.price * (1 - widget.offer.discountValue / 100))
                                         : (widget.offer.product.price - widget.offer.discountValue)).toStringAsFixed(0)}',
                                       style: TextStyle(

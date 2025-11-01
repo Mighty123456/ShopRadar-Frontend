@@ -6,6 +6,7 @@ import '../services/search_service.dart';
 import '../services/recent_search_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/shop_service.dart';
+import '../services/featured_offers_service.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
 import 'map_screen_free.dart';
@@ -30,6 +31,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> with TickerPr
   String? _errorMessage;
   bool _isOffline = false;
   bool _isFromCache = false;
+  // Featured offers tracking
+  Set<String> _featuredProductIds = {}; // Set of product IDs that are in featured offers
   // Filters
   double _minRating = 0.0; // 0.0 - 5.0
   double? _maxDistanceKm; // null = no cap
@@ -62,7 +65,21 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> with TickerPr
     );
     _fadeController.forward();
     _slideController.forward();
+    _loadFeaturedOffers();
     _checkConnectivityAndSearch();
+  }
+
+  Future<void> _loadFeaturedOffers() async {
+    try {
+      final offers = await FeaturedOffersService().fetchFeaturedOffers(radius: 8000);
+      if (mounted) {
+        setState(() {
+          _featuredProductIds = offers.map((offer) => offer.product.id).toSet();
+        });
+      }
+    } catch (e) {
+      debugPrint('[Search Results] Error loading featured offers: $e');
+    }
   }
 
   @override
@@ -286,12 +303,14 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> with TickerPr
     final isTablet = screenSize.width > 600;
     final hasOffer = p.bestOfferPercent > 0;
     final discountedPrice = hasOffer ? p.price * (1 - p.bestOfferPercent / 100) : p.price;
+    final isFeatured = _featuredProductIds.contains(p.id);
     
     return _InteractiveProductCardWidget(
       product: p,
       isTablet: isTablet,
       discountedPrice: discountedPrice,
       hasOffer: hasOffer,
+      isFeatured: isFeatured,
       onTap: () {
         HapticFeedback.mediumImpact();
         // Find the corresponding shop from shop results to get proper shop imageUrl
@@ -1502,6 +1521,7 @@ class _InteractiveProductCardWidget extends StatefulWidget {
   final bool isTablet;
   final double discountedPrice;
   final bool hasOffer;
+  final bool isFeatured;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -1510,6 +1530,7 @@ class _InteractiveProductCardWidget extends StatefulWidget {
     required this.isTablet,
     required this.discountedPrice,
     required this.hasOffer,
+    required this.isFeatured,
     required this.onTap,
     required this.onLongPress,
   });
@@ -1649,6 +1670,49 @@ class _InteractiveProductCardWidgetState extends State<_InteractiveProductCardWi
                                   const SizedBox(width: 4),
                                   Text(
                                     '${widget.product.bestOfferPercent.round()}% OFF',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        // Featured Badge
+                        if (widget.isFeatured)
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.orange.withValues(alpha: 0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.star,
+                                    color: Colors.white,
+                                    size: 12,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Featured',
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 11,

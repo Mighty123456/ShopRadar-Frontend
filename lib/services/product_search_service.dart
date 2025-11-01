@@ -178,29 +178,10 @@ class ProductSearchService {
             final Map<String, dynamic> productData = p as Map<String, dynamic>;
             final Map<String, dynamic>? shopData = productData['shop'] as Map<String, dynamic>?;
             
-            // Calculate best offer percentage from shop offers
-            int bestOfferPercent = 0;
-            if (shopData?['offers'] is List) {
-              for (final offerData in shopData!['offers'] as List) {
-                if (offerData is Map<String, dynamic>) {
-                  final discountValue = (offerData['discountValue'] as num?)?.toDouble() ?? 0.0;
-                  final discountType = offerData['discountType']?.toString() ?? 'Percentage';
-                  
-                  int offerPercent = 0;
-                  if (discountType == 'Percentage') {
-                    offerPercent = discountValue.round();
-                  } else if (discountType == 'Fixed Amount') {
-                    // For fixed amount, we'll use the raw value as percentage
-                    // In a real implementation, you'd need the product price to calculate percentage
-                    offerPercent = discountValue.round();
-                  }
-                  
-                  if (offerPercent > bestOfferPercent) {
-                    bestOfferPercent = offerPercent;
-                  }
-                }
-              }
-            }
+            // CRITICAL: Use product-specific bestOfferPercent from backend, NOT shop-level offers
+            // The backend already provides the correct product-specific offer percentage
+            // Calculating from shop offers would incorrectly show shop offers on all products
+            final int bestOfferPercent = (productData['bestOfferPercent'] as num?)?.toInt() ?? 0;
             
             return ProductResult(
               id: (productData['id'] ?? '').toString(),
