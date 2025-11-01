@@ -65,7 +65,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -121,7 +121,7 @@ flutter:
 flutter_native_splash:
   color: "#F7F8FA"
   color_dark: "#232136"
-  image: assets/images/shopradar_icon.svg
+  image: assets/images/shopradar_icon.png
   android_gravity: center
   ios_content_mode: center
   android_12:
@@ -129,9 +129,12 @@ flutter_native_splash:
     icon_background_color_dark: "#2979FF"
 
 # Flutter Launcher Icons configuration
+# Note: PNG file required - SVG not supported for app icons
+# Convert shopradar_icon.svg to PNG (1024x1024 recommended) and place it as:
+# assets/images/shopradar_icon.png
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/shopradar_icon.svg"
+  image_path: "assets/images/shopradar_icon.png"
   adaptive_icon_background: "#2979FF"
-  adaptive_icon_foreground: "assets/images/shopradar_icon.svg"
+  adaptive_icon_foreground: "assets/images/shopradar_icon.png"

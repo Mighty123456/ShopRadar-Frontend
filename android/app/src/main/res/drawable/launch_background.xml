@@ -1,28 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ShopRadar Launch Splash Screen -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Background gradient -->
     <item>
-        <shape android:shape="rectangle">
-            <gradient
-                android:startColor="#F7F8FA"
-                android:endColor="#E8F2FF"
-                android:angle="135" />
-        </shape>
+        <bitmap android:gravity="fill" android:src="@drawable/background"/>
     </item>
-    
-    <!-- App logo/icon -->
-    <item android:gravity="center">
-        <shape android:shape="oval">
-            <solid android:color="#2979FF" />
-            <size android:width="120dp" android:height="120dp" />
-        </shape>
-    </item>
-    
-    <!-- App name text -->
-    <item android:gravity="center|bottom" android:bottom="200dp">
-        <shape android:shape="rectangle">
-            <solid android:color="@android:color/transparent" />
-        </shape>
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/splash"/>
     </item>
 </layer-list>

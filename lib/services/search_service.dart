@@ -313,58 +313,10 @@ class SearchService {
       );
     }).toList();
 
-    // If some products don't include bestOfferPercent, fetch actual offers
-    // for their shops and backfill the highest percentage so UI shows real data.
-    final Set<String> shopsNeedingOffers = products
-        .where((pr) => pr.bestOfferPercent == 0 && pr.shopId.isNotEmpty)
-        .map((pr) => pr.shopId)
-        .toSet();
-
-    Map<String, int> bestPercentByShop = {};
-    if (shopsNeedingOffers.isNotEmpty) {
-      try {
-        final List<Future<void>> tasks = shopsNeedingOffers.map((shopId) async {
-          try {
-            final offers = await offers_service.ShopOffersService.getActiveShopOffers(shopId: shopId, limit: 10);
-            int best = 0;
-            for (final o in offers) {
-              if (o.discountType == 'Percentage') {
-                best = math.max(best, o.discountValue.round());
-              }
-            }
-            bestPercentByShop[shopId] = best;
-          } catch (e) {
-            debugPrint('Failed to fetch offers for shop $shopId while backfilling percent: $e');
-            bestPercentByShop[shopId] = 0;
-          }
-        }).toList();
-        await Future.wait(tasks);
-      } catch (e) {
-        debugPrint('Error backfilling bestOfferPercent from offers: $e');
-      }
-    }
-
-    // Rebuild products with backfilled percentages where available
-    final List<ProductResult> productsWithRealPercents = products.map((p) {
-      if (p.bestOfferPercent > 0) return p;
-      final int backfilled = bestPercentByShop[p.shopId] ?? 0;
-      if (backfilled == 0) return p;
-      return ProductResult(
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        imageUrl: p.imageUrl,
-        price: p.price,
-        bestOfferPercent: backfilled,
-        shopId: p.shopId,
-        shopName: p.shopName,
-        shopAddress: p.shopAddress,
-        shopLatitude: p.shopLatitude,
-        shopLongitude: p.shopLongitude,
-        shopRating: p.shopRating,
-        distanceKm: p.distanceKm,
-      );
-    }).toList();
+    // Return products as-is - backend already provides correct product-specific offers
+    // Don't backfill with shop-level offers as that would show wrong offers on products
+    // The backend's bestOfferPercent is already product-specific, so we use it directly
+    final List<ProductResult> productsWithRealPercents = products;
 
     // If product hits exist, aggregate shops from product results so each shop appears once
     // with the best offer/lowest price. This ensures multiple shops with offers are shown.
