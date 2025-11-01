@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
 import 'map_screen_free.dart';
 import '../widgets/voice_search_button.dart';
+import '../widgets/radar_loader.dart';
 
 class SearchResultsScreen extends StatefulWidget {
   final String query;
@@ -544,58 +545,72 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> with TickerPr
     final isLargeScreen = screenSize.width > 900;
     
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.white,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFF2979FF),
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
-        toolbarHeight: isTablet ? 80 : (isLargeScreen ? 90 : 70),
+        toolbarHeight: isTablet ? 90 : (isLargeScreen ? 100 : 80),
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF2979FF), Color(0xFF1E40AF)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2979FF),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2979FF).withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
         ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
         title: Container(
-          height: isTablet ? 45 : 40,
+          height: isTablet ? 48 : 44,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(25),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: TextField(
             controller: _controller,
             style: TextStyle(
-              color: Colors.white,
-              fontSize: isTablet ? 16 : 14,
+              color: Colors.grey[800],
+              fontSize: isTablet ? 16 : 15,
               fontWeight: FontWeight.w500,
             ),
             decoration: InputDecoration(
               hintText: 'Search products, shops, or offers...',
               hintStyle: TextStyle(
-                color: Colors.white70,
-                fontSize: isTablet ? 16 : 14,
+                color: Colors.grey[400],
+                fontSize: isTablet ? 16 : 15,
                 fontWeight: FontWeight.w400,
               ),
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(
                 horizontal: isTablet ? 20 : 16,
-                vertical: isTablet ? 12 : 10,
+                vertical: isTablet ? 14 : 12,
               ),
               prefixIcon: Icon(
                 Icons.search,
-                color: Colors.white70,
-                size: isTablet ? 20 : 18,
+                color: const Color(0xFF2979FF),
+                size: isTablet ? 22 : 20,
               ),
               suffixIcon: VoiceSearchButton(
                 onVoiceResult: (result) {
                   _controller.text = result;
                   _runSearch(result);
                 },
-                iconColor: Colors.white70,
+                iconColor: Colors.grey[600],
                 iconSize: isTablet ? 20 : 18,
                 tooltip: 'Voice search',
               ),
@@ -654,41 +669,53 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> with TickerPr
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
             ),
-            child: IconButton(
-              icon: Icon(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _showFilters();
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(
                 Icons.tune,
                 size: isTablet ? 22 : 20,
                 color: Colors.white,
               ),
-              tooltip: 'Filters',
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                _showFilters();
-              },
+                ),
+              ),
             ),
           ),
           Container(
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
             ),
-            child: IconButton(
-              icon: Icon(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _isLoading ? null : () {
+                  HapticFeedback.mediumImpact();
+                  _runSearch(_controller.text);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(
                 Icons.refresh,
                 size: isTablet ? 22 : 20,
                 color: Colors.white,
               ),
-              tooltip: 'Refresh',
-              onPressed: _isLoading ? null : () {
-                HapticFeedback.mediumImpact();
-                _runSearch(_controller.text);
-              },
+                ),
+              ),
             ),
           ),
         ],
@@ -712,15 +739,12 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> with TickerPr
           if (_isLoading)
             Positioned.fill(
               child: Container(
-                color: Colors.white.withValues(alpha: 0.6),
-                child: const Center(
-                  child: SizedBox(
-                    height: 48,
-                    width: 48,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 4,
-                      valueColor: AlwaysStoppedAnimation(Color(0xFF2979FF)),
-                    ),
+                color: Colors.white.withValues(alpha: 0.95),
+                child: Center(
+                  child: RadarLoader(
+                    size: 220,
+                    message: 'Searching...',
+                    useAppColors: true,
                   ),
                 ),
               ),

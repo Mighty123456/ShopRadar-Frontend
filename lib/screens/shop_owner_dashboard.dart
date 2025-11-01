@@ -8,6 +8,9 @@ import 'analytics_dashboard_screen.dart';
 import 'customer_interaction_screen.dart';
 import 'ai_insights_screen.dart';
 import 'profile_screen.dart';
+import 'subscription_plans_screen.dart';
+import 'featured_listing_screen.dart';
+import 'offer_promotion_payment_screen.dart';
 import '../services/auth_service.dart';
 
 class ShopOwnerDashboard extends StatefulWidget {
@@ -108,7 +111,72 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
     final isLarge = screenWidth >= 768 && screenWidth < 1024;
     final isExtraLarge = screenWidth >= 1024;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        
+        // Store navigator before any async operations to avoid BuildContext warning
+        if (!mounted) return;
+        final navigator = Navigator.of(context);
+        
+        // Show exit confirmation dialog
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Exit Business Dashboard?',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+            content: const Text(
+              'Are you sure you want to exit? You will need to log in again to access the business dashboard.',
+              style: TextStyle(fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: Color(0xFF2979FF),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                ),
+                child: const Text(
+                  'Exit',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+        
+        if (shouldExit == true && mounted) {
+          // Logout and go to auth screen
+          await AuthService.logout();
+          if (mounted) {
+            navigator.pushNamedAndRemoveUntil(
+              '/auth',
+              (route) => false,
+            );
+          }
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: const Color(0xFF2979FF),
@@ -180,6 +248,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
         ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(isSmallScreen, isTablet, isLargeTablet),
+      ),
     );
   }
 
@@ -517,6 +586,63 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
                 );
                 // Refresh dashboard data when returning from analytics
                 _loadShopData();
+              },
+              isSmallScreen,
+              isTablet,
+              isLargeTablet,
+              isMedium,
+              isLarge,
+              isExtraLarge,
+            ),
+            _buildActionCard(
+              'Manage Subscription',
+              Icons.credit_card,
+              const Color(0xFF2979FF),
+              () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SubscriptionPlansScreen(),
+                  ),
+                );
+              },
+              isSmallScreen,
+              isTablet,
+              isLargeTablet,
+              isMedium,
+              isLarge,
+              isExtraLarge,
+            ),
+            _buildActionCard(
+              'Get Featured',
+              Icons.star,
+              Colors.orange,
+              () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FeaturedListingScreen(),
+                  ),
+                );
+              },
+              isSmallScreen,
+              isTablet,
+              isLargeTablet,
+              isMedium,
+              isLarge,
+              isExtraLarge,
+            ),
+            _buildActionCard(
+              'Promote Offers',
+              Icons.trending_up,
+              const Color(0xFF9C27B0),
+              () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const OfferPromotionPaymentScreen(),
+                  ),
+                );
               },
               isSmallScreen,
               isTablet,

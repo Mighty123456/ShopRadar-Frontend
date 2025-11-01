@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:math' as math;
 
 class LoadingWidget extends StatefulWidget {
   final String? message;
@@ -127,11 +128,12 @@ class _LoadingWidgetState extends State<LoadingWidget>
               const SizedBox(height: 20),
               Text(
                 'ShopRadar',
-                style: GoogleFonts.poppins(
+                style: GoogleFonts.inter(
                   fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
                   color: primaryColor,
-                  letterSpacing: 1.2,
+                  letterSpacing: -0.3,
+                  height: 1.2,
                 ),
               ),
             ],
@@ -192,6 +194,116 @@ class _LoadingWidgetState extends State<LoadingWidget>
   }
 }
 
+// Minimalist blue curved line loader (default style for app)
+class MinimalLoader extends StatefulWidget {
+  final double? size;
+  final Color? color;
+  final double strokeWidth;
+
+  const MinimalLoader({
+    super.key,
+    this.size,
+    this.color,
+    this.strokeWidth = 3.0,
+  });
+
+  @override
+  State<MinimalLoader> createState() => _MinimalLoaderState();
+}
+
+class _MinimalLoaderState extends State<MinimalLoader>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _rotationAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat();
+    
+    _rotationAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.linear,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.size ?? 40.0;
+    final color = widget.color ?? const Color(0xFF2979FF);
+    
+    return SizedBox(
+      width: size,
+      height: size,
+      child: AnimatedBuilder(
+        animation: _rotationAnimation,
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _rotationAnimation.value * 2 * math.pi,
+            child: CustomPaint(
+              painter: CurvedLinePainter(
+                color: color,
+                strokeWidth: widget.strokeWidth,
+              ),
+              size: Size(size, size),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Custom painter for the curved line
+class CurvedLinePainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+
+  CurvedLinePainter({
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - strokeWidth / 2;
+    
+    // Draw a curved arc (approximately 270 degrees)
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    canvas.drawArc(
+      rect,
+      -math.pi / 2, // Start from top
+      5 * math.pi / 3, // Draw 300 degrees (5/6 of circle)
+      false,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(CurvedLinePainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
+  }
+}
+
 // Simple loading overlay for buttons and forms
 class LoadingOverlay extends StatelessWidget {
   final bool isLoading;
@@ -231,7 +343,7 @@ class LoadingOverlay extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const LoadingWidget(size: 40),
+                      const MinimalLoader(size: 40),
                       if (message != null) ...[
                         const SizedBox(height: 16),
                         Text(

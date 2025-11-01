@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/shop.dart';
 import '../services/favorite_shops_service.dart';
+import '../widgets/radar_loader.dart';
+import '../widgets/voice_search_button.dart';
 import 'shop_details_screen.dart';
 import 'map_screen_free.dart';
 
@@ -104,11 +107,97 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     final isTablet = screenSize.width > 600;
     final isLargeScreen = screenSize.width > 900;
 
+    final searchController = TextEditingController(text: _searchQuery);
+
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2979FF),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
-        title: const Text('Favorite Shops'),
+        toolbarHeight: isTablet ? 90 : (isLargeScreen ? 100 : 80),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF2979FF),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2979FF).withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
+        title: Container(
+          height: isTablet ? 48 : 44,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: TextField(
+            controller: searchController,
+            style: TextStyle(
+              color: Colors.grey[800],
+              fontSize: isTablet ? 16 : 15,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search favorites...',
+              hintStyle: TextStyle(
+                color: Colors.grey[400],
+                fontSize: isTablet ? 16 : 15,
+                fontWeight: FontWeight.w400,
+              ),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 20 : 16,
+                vertical: isTablet ? 14 : 12,
+              ),
+              prefixIcon: Icon(
+                Icons.search,
+                color: const Color(0xFF2979FF),
+                size: isTablet ? 22 : 20,
+              ),
+              suffixIcon: VoiceSearchButton(
+                onVoiceResult: (result) {
+                  searchController.text = result;
+                  setState(() {
+                    _searchQuery = result;
+                  });
+                  _loadFavorites();
+                },
+                iconColor: Colors.grey[600],
+                iconSize: isTablet ? 20 : 18,
+                tooltip: 'Voice search',
+              ),
+            ),
+            onSubmitted: (value) {
+              HapticFeedback.lightImpact();
+              setState(() {
+                _searchQuery = value;
+              });
+              _loadFavorites();
+            },
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+              });
+              _loadFavorites();
+            },
+          ),
+        ),
         actions: [
           if (_favoriteShops.isNotEmpty)
             IconButton(
@@ -120,41 +209,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       ),
       body: Column(
         children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search favorites...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                          _loadFavorites();
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-                _loadFavorites();
-              },
-            ),
-          ),
-
           // Content
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(
+                    child: RadarLoader(
+                      size: isTablet ? 200 : 180,
+                      message: 'Loading Favorites...',
+                      useAppColors: true,
+                    ),
+                  )
                 : _favoriteShops.isEmpty
                     ? _buildEmptyState()
                     : _buildFavoritesList(isTablet, isLargeScreen),

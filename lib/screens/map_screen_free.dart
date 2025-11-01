@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as latlng;
 import 'package:geolocator/geolocator.dart';
@@ -7,6 +8,7 @@ import '../services/location_service.dart';
 import '../models/shop.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/directions_panel.dart';
+import '../widgets/radar_loader.dart';
 import '../config/mapbox_config.dart';
 import '../services/routing_service.dart';
 import '../services/search_service.dart';
@@ -54,6 +56,9 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
   bool _isNavigating = false;
   bool _showDirectionsPanel = false;
   bool _showArrivalAnimation = false;
+  bool _showInteractiveHint = false; // Hint to tell users they can click shops
+  bool _userInMotion = false; // Track if user is moving
+  latlng.LatLng? _previousLocationForMotion; // Track previous location for motion detection
   late final AnimationController _arrivalController;
   late final Animation<double> _arrivalScale;
   late final Animation<double> _arrivalOpacity;
@@ -74,6 +79,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
   late final Animation<double> _pulse;
   late final AnimationController _recommendController;
   late final Animation<double> _recommendScale;
+  late final AnimationController _panelController;
   static final latlng.LatLng _defaultCenter = latlng.LatLng(MapConfig.defaultLatitude, MapConfig.defaultLongitude);
 
   @override
@@ -91,6 +97,10 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     _arrivalScale = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _arrivalController, curve: Curves.elasticOut));
     _arrivalOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _arrivalController, curve: Curves.easeIn));
     
+    // Panel animation controller
+    _panelController = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _panelController.value = 0.0; // Start with panel closed
+    
     _initializeMap();
   }
 
@@ -101,6 +111,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     _pulseController.dispose();
     _recommendController.dispose();
     _arrivalController.dispose();
+    _panelController.dispose();
     super.dispose();
   }
 
@@ -156,40 +167,23 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
             _drawRouteTo(_selectedShop!);
           }
           // If routeToShop is set but location not yet available, it will be drawn when location becomes available (in _startPositionStream)
-          // If asked to draw routes for all shops
-          else if (widget.drawRoutesForAll && _currentLocation != null) {
-            final List<Shop> sorted = List<Shop>.from(_shops);
-            sorted.sort((a, b) => _haversineMeters(_toLL(a), _currentLocation!).compareTo(_haversineMeters(_toLL(b), _currentLocation!)));
-            final List<Shop> subset = sorted.take(5).toList();
-            // Draw routes to up to 5 closest shops
-            _routePolyline.clear();
-            for (final shop in subset) {
-              RoutingService.getRoute(start: _currentLocation!, end: _toLL(shop)).then((route) {
-                if (!mounted) return;
-                if (route != null && route.points.length >= 2) {
-                  setState(() {
-                    _routePolyline.addAll(route.points);
-                  });
-                } else {
-                  setState(() {
-                    _routePolyline..add(_currentLocation!)..add(_toLL(shop));
-                  });
-                }
-                // Fit view after routes are drawn
-                if (mounted) {
-                  _fitAllShopsToView();
-                }
-              }).catchError((_) {
-                if (mounted) {
-                  setState(() {
-                    _routePolyline..add(_currentLocation!)..add(_toLL(shop));
-                  });
-                  _fitAllShopsToView();
-                }
-              });
-            }
-            // Fit view immediately (will update when routes load)
+          // When drawRoutesForAll is true, just show all shops without drawing routes automatically
+          // Users can click on any shop marker to start navigation to that shop
+          else if (widget.drawRoutesForAll) {
+            // Just fit all shops in view - no automatic route drawing
             _fitAllShopsToView();
+            // Show hint to users that they can click shops
+            setState(() {
+              _showInteractiveHint = true;
+            });
+            // Auto-dismiss hint after 5 seconds
+            Future.delayed(const Duration(seconds: 5), () {
+              if (mounted) {
+                setState(() {
+                  _showInteractiveHint = false;
+                });
+              }
+            });
           }
           // If no specific route requested, fit all shops in view
           else if (widget.routeToShop == null) {
@@ -352,7 +346,11 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       setState(() {
         _selectedShop = shop;
         _drawRouteTo(shop);
+        // Hide hint when user clicks on a shop
+        _showInteractiveHint = false;
       });
+      // Haptic feedback for better UX
+      HapticFeedback.lightImpact();
     }
   }
 
@@ -444,7 +442,9 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       _nextTurnInstruction = null; // Reset turn instructions
       _locationHistory.clear(); // Clear location history for fresh heading calculation
       _userHeading = null; // Reset heading
+      _previousLocationForMotion = _currentLocation; // Initialize motion tracking
     });
+    HapticFeedback.mediumImpact(); // Feedback when starting navigation
 
     // Restart position stream with better accuracy for navigation
     if (_currentLocation != null) {
@@ -477,13 +477,111 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       _routePolyline.clear();
       _routeArrows.clear();
       _routeLabels.clear();
+      _userInMotion = false;
+      _previousLocationForMotion = null;
     });
+    HapticFeedback.lightImpact(); // Feedback when ending navigation
     
     // Restart position stream with standard accuracy
     if (_currentLocation != null) {
       _startPositionStream();
     }
   }
+  
+  void _toggleDirectionsPanel() {
+    setState(() {
+      _showDirectionsPanel = !_showDirectionsPanel;
+      if (_showDirectionsPanel) {
+        _panelController.forward();
+      } else {
+        _panelController.reverse();
+      }
+    });
+    HapticFeedback.lightImpact();
+  }
+  
+  Widget _buildReopenMenuButton(bool isTablet) {
+    return Material(
+      elevation: 6,
+      borderRadius: BorderRadius.circular(16),
+      color: Colors.white,
+      child: InkWell(
+        onTap: _toggleDirectionsPanel,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: EdgeInsets.all(isTablet ? 16 : 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2979FF),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2979FF).withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.menu, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Menu',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: isTablet ? 16 : 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildMotionIndicator(bool isTablet) {
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(12),
+      color: Colors.white,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isTablet ? 14 : 12,
+          vertical: isTablet ? 10 : 8,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF10B981).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF10B981).withValues(alpha: 0.3),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.directions_walk,
+              color: const Color(0xFF10B981),
+              size: isTablet ? 20 : 18,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Moving',
+              style: TextStyle(
+                color: const Color(0xFF10B981),
+                fontSize: isTablet ? 14 : 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
 
   void _onRouteModeChanged() {
     // Cycle through route modes
@@ -575,6 +673,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
           _lastRouteMin = (route.durationSeconds / 60.0).round();
           _buildRouteArrows();
           _showDirectionsPanel = true;
+          _panelController.forward();
         });
         _fitRouteToView();
       } else {
@@ -587,6 +686,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
           _lastRouteMin = 0;
           _buildRouteArrows();
           _showDirectionsPanel = true;
+          _panelController.forward();
         });
         _fitRouteToView();
       }
@@ -630,6 +730,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
           _lastRouteMin = (route.durationSeconds / 60.0).round();
           _buildRouteArrows();
           _showDirectionsPanel = true;
+          _panelController.forward();
         });
         _fitRouteToView();
       } else {
@@ -642,6 +743,7 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
           _lastRouteMin = 0;
           _buildRouteArrows();
           _showDirectionsPanel = true;
+          _panelController.forward();
         });
         _fitRouteToView();
       }
@@ -694,6 +796,14 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
       
       setState(() {
         _currentLocation = newLoc;
+        // Detect if user is in motion (moving more than 2 meters per update)
+        if (_previousLocationForMotion != null) {
+          final motionDistance = _haversineMeters(_previousLocationForMotion!, newLoc);
+          _userInMotion = motionDistance > 2.0; // User is moving if moved > 2 meters
+        } else {
+          _userInMotion = false;
+        }
+        _previousLocationForMotion = newLoc;
       });
       
       // If routeToShop was provided but route wasn't drawn yet (location wasn't available initially), draw it now
@@ -1052,12 +1162,92 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     );
   }
 
-  latlng.LatLng _toLL(Shop s) => latlng.LatLng(s.latitude, s.longitude);
-
   void _showSearchDialog() {
     setState(() {
       _showSearchOverlay = true;
     });
+  }
+
+  Widget _buildInteractiveHintBanner(bool isTablet) {
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      color: Colors.white,
+      child: Container(
+        padding: EdgeInsets.all(isTablet ? 18 : 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2979FF).withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF2979FF).withValues(alpha: 0.3),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: isTablet ? 56 : 48,
+              height: isTablet ? 56 : 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2979FF).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.touch_app,
+                color: Color(0xFF2979FF),
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Instruction text
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Tap any shop to start navigation',
+                    style: TextStyle(
+                      fontSize: isTablet ? 18 : 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Click on a shop marker to get directions',
+                    style: TextStyle(
+                      fontSize: isTablet ? 14 : 12,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Close button
+            IconButton(
+              icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+              onPressed: () {
+                setState(() {
+                  _showInteractiveHint = false;
+                });
+              },
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildNavigationBanner(bool isTablet) {
@@ -1352,22 +1542,41 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
                 tileProvider: NetworkTileProvider(),
               ),
               if (_currentLocation != null)
-                CircleLayer(circles: [
-                  // Outer pulsing circle
-                  CircleMarker(
-                    point: _currentLocation!,
-                    color: const Color(0xFF2979FF).withValues(alpha: 0.1),
-                    borderStrokeWidth: 0,
-                    radius: 40,
-                  ),
-                  // Inner circle
-                  CircleMarker(
-                    point: _currentLocation!,
-                    color: const Color(0xFF2979FF).withValues(alpha: 0.2),
-                    borderStrokeWidth: 0,
-                    radius: 25,
-                  ),
-                ]),
+                AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, child) {
+                    return CircleLayer(circles: [
+                      // White animated ripple effects
+                      ...List.generate(3, (index) {
+                        final delay = index * 0.4;
+                        final rippleValue = ((_pulseController.value + delay) % 1.0);
+                        final rippleSize = 30.0 + (rippleValue * 45.0); // Grows from 30 to 75
+                        final rippleOpacity = (1.0 - rippleValue).clamp(0.0, 0.7); // Fades out
+                        return CircleMarker(
+                          point: _currentLocation!,
+                          color: Colors.white.withValues(alpha: rippleOpacity * 0.6),
+                          borderStrokeWidth: 2.5,
+                          borderColor: Colors.white.withValues(alpha: rippleOpacity * 0.9),
+                          radius: rippleSize,
+                        );
+                      }),
+                      // Blue pulsing circle (outer)
+                      CircleMarker(
+                        point: _currentLocation!,
+                        color: const Color(0xFF2979FF).withValues(alpha: 0.15),
+                        borderStrokeWidth: 0,
+                        radius: 35,
+                      ),
+                      // Blue pulsing circle (middle)
+                      CircleMarker(
+                        point: _currentLocation!,
+                        color: const Color(0xFF2979FF).withValues(alpha: 0.25),
+                        borderStrokeWidth: 0,
+                        radius: 22,
+                      ),
+                    ]);
+                  },
+                ),
               if (_currentLocation != null)
                 MarkerLayer(markers: [
                   Marker(
@@ -1475,16 +1684,6 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
                 MarkerLayer(markers: _routeArrows),
               if (_routeLabels.isNotEmpty)
                 MarkerLayer(markers: _routeLabels),
-              // Attribution
-              RichAttributionWidget(
-                popupBackgroundColor: Colors.white,
-                attributions: [
-                  TextSourceAttribution(
-                    MapConfig.attribution,
-                    onTap: () {},
-                  ),
-                  ],
-                ),
             ],
           ),
           
@@ -1551,6 +1750,15 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
             ),
           ),
 
+          // Interactive Hint Banner (tells users they can click shops to navigate)
+          if (_showInteractiveHint && !_isNavigating)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + (isTablet ? 80 : 60),
+              left: isTablet ? 88 : 80,
+              right: isTablet ? 88 : 80,
+              child: _buildInteractiveHintBanner(isTablet),
+            ),
+          
           // Navigation Banner (shows turn-by-turn instructions)
           if (_isNavigating && _nextTurnInstruction != null)
             Positioned(
@@ -1560,21 +1768,46 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
               child: _buildNavigationBanner(isTablet),
             ),
           
+          // Floating button to reopen menu during navigation
+          if (_isNavigating && !_showDirectionsPanel)
+            Positioned(
+              bottom: isTablet ? 100 : 80,
+              right: isTablet ? 32 : 24,
+              child: _buildReopenMenuButton(isTablet),
+            ),
+          
+          // Motion indicator (shows when user is moving)
+          if (_isNavigating && _userInMotion)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + (isTablet ? 70 : 60), // Position below back button
+              left: isTablet ? 20 : 16, // Position on left side to avoid overlapping with map controls
+              child: _buildMotionIndicator(isTablet),
+            ),
+          
           // Directions Panel
           if (_showDirectionsPanel && _routePolyline.length >= 2)
             Positioned(
               bottom: 20,
               left: 0,
               right: 0,
-              child: DirectionsPanel(
-                destination: _selectedShop,
-                distanceKm: _lastRouteKm,
-                durationMinutes: _lastRouteMin,
-                routeMode: _routeMode,
-                onStartNavigation: _onStartNavigation,
-                onEndNavigation: _onEndNavigation,
-                onRouteModeChanged: _onRouteModeChanged,
-                isNavigating: _isNavigating,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.0, 1.0),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(
+                  parent: _panelController,
+                  curve: Curves.easeOutCubic,
+                )),
+                child: DirectionsPanel(
+                  destination: _selectedShop,
+                  distanceKm: _lastRouteKm,
+                  durationMinutes: _lastRouteMin,
+                  routeMode: _routeMode,
+                  onStartNavigation: _onStartNavigation,
+                  onEndNavigation: _onEndNavigation,
+                  onRouteModeChanged: _onRouteModeChanged,
+                  isNavigating: _isNavigating,
+                ),
               ),
             ),
           
@@ -1693,13 +1926,55 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
               ),
             ),
 
-          // Loading Indicator
+          // Radar Loading Indicator
           if (_isLoading)
-            Container(
-              color: Colors.black.withValues(alpha: 0.3),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2979FF)),
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.6),
+                      Colors.black.withValues(alpha: 0.4),
+                    ],
+                  ),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      RadarLoader(
+                        size: isTablet ? 200 : 180,
+                        message: null, // We'll add custom message below
+                        useAppColors: true,
+                      ),
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2979FF).withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF2979FF).withValues(alpha: 0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          'Loading Map...',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: isTablet ? 18 : 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1708,3 +1983,4 @@ class _MapScreenFreeState extends State<MapScreenFree> with TickerProviderStateM
     );
   }
 }
+

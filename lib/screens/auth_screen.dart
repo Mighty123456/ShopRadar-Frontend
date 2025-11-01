@@ -100,11 +100,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                               tag: 'logo',
                               child: Text(
                                 'SHOPRADAR',
-                                style: GoogleFonts.poppins(
+                                style: GoogleFonts.inter(
                                   fontSize: isTablet ? 52 : (isLargeScreen ? 56 : 44),
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w800,
                                   color: Color(0xFF2979FF),
-                                  letterSpacing: isTablet ? 6 : 5,
+                                  letterSpacing: isTablet ? 4 : 3,
+                                  height: 1.1,
                                   shadows: [
                                     Shadow(
                                       color: Colors.black12,

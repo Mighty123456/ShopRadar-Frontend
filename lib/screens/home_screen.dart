@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../widgets/animated_message_dialog.dart';
 import 'map_screen_free.dart';
 import '../services/notification_service.dart';
@@ -13,6 +15,8 @@ import '../services/featured_offers_service.dart';
 import '../models/shop.dart';
 import '../services/realtime_service.dart';
 import '../widgets/voice_search_button.dart';
+import '../widgets/minimal_loader.dart';
+import '../widgets/interactive_bottom_nav_bar.dart';
 import '../utils/shop_utils.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -304,26 +308,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                 width: isLargeTablet ? 48 : (isTablet ? 40 : 32),
                                 height: isLargeTablet ? 48 : (isTablet ? 40 : 32),
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF2979FF), Color(0xFF2DD4BF)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
                                   borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
                                 ),
-                                child: Icon(
-                                  Icons.radar,
-                                  color: Colors.white,
-                                  size: isLargeTablet ? 24 : (isTablet ? 20 : 16),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(isLargeTablet ? 12 : (isTablet ? 10 : 8)),
+                                  child: SvgPicture.asset(
+                                    'assets/images/shopradar_icon.svg',
+                                    width: isLargeTablet ? 48 : (isTablet ? 40 : 32),
+                                    height: isLargeTablet ? 48 : (isTablet ? 40 : 32),
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ),
                               SizedBox(width: isLargeTablet ? 12 : (isTablet ? 10 : 8)),
             Text(
               'ShopRadar',
-              style: TextStyle(
+              style: GoogleFonts.inter(
                 fontSize: isLargeTablet ? 28 : (isTablet ? 24 : 20),
-                                  fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
                                   color: const Color(0xFF1A1A1A),
+                letterSpacing: -0.3,
               ),
             ),
           ],
@@ -518,15 +522,13 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
+      bottomNavigationBar: InteractiveBottomNavBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
           if (index != _selectedIndex) {
             setState(() {
               _selectedIndex = index;
             });
-            
 
             switch (index) {
               case 0:
@@ -543,30 +545,26 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           }
         },
-        selectedItemColor: const Color(0xFF2979FF),
-        unselectedItemColor: Colors.grey[600],
-        backgroundColor: Colors.white,
-        elevation: 8,
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
+        items: const [
+          NavBarItem(
+            icon: Icons.home_outlined,
+            selectedIcon: Icons.home,
             label: 'Home',
-            backgroundColor: Colors.transparent,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.store),
+          NavBarItem(
+            icon: Icons.store_outlined,
+            selectedIcon: Icons.store,
             label: 'Stores',
-            backgroundColor: Colors.transparent,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite),
+          NavBarItem(
+            icon: Icons.favorite_border,
+            selectedIcon: Icons.favorite,
             label: 'Favorites',
-            backgroundColor: Colors.transparent,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
+          NavBarItem(
+            icon: Icons.person_outline,
+            selectedIcon: Icons.person,
             label: 'Profile',
-            backgroundColor: Colors.transparent,
           ),
         ],
       ),
@@ -909,7 +907,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildNearbyStoresList(bool isSmallScreen, bool isTablet, bool isLargeTablet) {
     if (_loadingNearby) {
-      return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
+      return const Center(child: Padding(padding: EdgeInsets.all(16), child: MinimalLoader()));
     }
     if (_nearbyShops.isEmpty) {
       return const SizedBox.shrink();
@@ -1334,7 +1332,7 @@ class _InteractiveOfferCardState extends State<_InteractiveOfferCard>
                   Stack(
                     children: [
                       Container(
-                        height: widget.isLargeTablet ? 140 : (widget.isTablet ? 130 : 120),
+                        height: widget.isLargeTablet ? 180 : (widget.isTablet ? 170 : 160),
                         width: double.infinity,
                         decoration: BoxDecoration(
                           color: const Color(0xFFF3F4F6),
@@ -1351,7 +1349,9 @@ class _InteractiveOfferCardState extends State<_InteractiveOfferCard>
                                 ),
                                 child: Image.network(
                                   firstImage,
-                                  fit: BoxFit.cover,
+                                  fit: BoxFit.contain,
+                                  width: double.infinity,
+                                  height: double.infinity,
                                   errorBuilder: (context, error, stackTrace) => _buildPlaceholderImage(),
                                 ),
                               )
@@ -1568,12 +1568,14 @@ class _InteractiveOfferCardState extends State<_InteractiveOfferCard>
 
   Widget _buildPlaceholderImage() {
     return Container(
+      width: double.infinity,
+      height: double.infinity,
       color: const Color(0xFFF3F4F6),
       child: Center(
         child: Icon(
           Icons.image_outlined,
           color: Colors.grey[400],
-          size: widget.isLargeTablet ? 48 : (widget.isTablet ? 40 : 36),
+          size: widget.isLargeTablet ? 80 : (widget.isTablet ? 70 : 60),
         ),
       ),
     );

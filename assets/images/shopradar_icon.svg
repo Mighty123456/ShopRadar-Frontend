@@ -1,29 +1,247 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background circle -->
-  <circle cx="512" cy="512" r="512" fill="#2979FF"/>
+  <defs>
+    <!-- Gradient for background -->
+    <radialGradient id="bgGradient" cx="50%" cy="50%">
+      <stop offset="0%" stop-color="#2979FF"/>
+      <stop offset="100%" stop-color="#1565C0"/>
+    </radialGradient>
+    
+    <!-- Shadow filter -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Glow filter for radar -->
+    <filter id="radarGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="0" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.5"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Clip path for circle boundary -->
+    <clipPath id="circleClip">
+      <circle cx="512" cy="512" r="512"/>
+    </clipPath>
+  </defs>
   
-  <!-- Radar waves -->
-  <circle cx="512" cy="512" r="400" fill="none" stroke="#FFFFFF" stroke-width="8" opacity="0.3"/>
-  <circle cx="512" cy="512" r="300" fill="none" stroke="#FFFFFF" stroke-width="6" opacity="0.5"/>
-  <circle cx="512" cy="512" r="200" fill="none" stroke="#FFFFFF" stroke-width="4" opacity="0.7"/>
+  <!-- Background circle with gradient -->
+  <circle cx="512" cy="512" r="512" fill="url(#bgGradient)"/>
   
-  <!-- Radar sweep line -->
-  <line x1="512" y1="512" x2="512" y2="112" stroke="#FFFFFF" stroke-width="6" opacity="0.8"/>
+  <!-- Group all content with clip path to ensure everything stays within circle -->
+  <g clip-path="url(#circleClip)">
   
-  <!-- Shop building -->
-  <rect x="400" y="600" width="224" height="200" fill="#FFFFFF" rx="8"/>
-  <rect x="420" y="620" width="40" height="40" fill="#2979FF"/>
-  <rect x="480" y="620" width="40" height="40" fill="#2979FF"/>
-  <rect x="540" y="620" width="40" height="40" fill="#2979FF"/>
-  <rect x="600" y="620" width="40" height="40" fill="#2979FF"/>
+  <!-- Visible radar waves - bright and clear -->
+  <circle cx="512" cy="512" r="280" fill="none" stroke="#FFFFFF" stroke-width="5" opacity="0.9" filter="url(#radarGlow)"/>
+  <circle cx="512" cy="512" r="320" fill="none" stroke="#2DD4BF" stroke-width="4" opacity="0.85" filter="url(#radarGlow)"/>
+  <circle cx="512" cy="512" r="360" fill="none" stroke="#FFFFFF" stroke-width="3.5" opacity="0.8" filter="url(#radarGlow)"/>
+  <circle cx="512" cy="512" r="400" fill="none" stroke="#2DD4BF" stroke-width="3" opacity="0.75" filter="url(#radarGlow)"/>
+  <circle cx="512" cy="512" r="440" fill="none" stroke="#FFFFFF" stroke-width="2.5" opacity="0.7" filter="url(#radarGlow)"/>
+  <circle cx="512" cy="512" r="480" fill="none" stroke="#2DD4BF" stroke-width="2" opacity="0.65" filter="url(#radarGlow)"/>
   
-  <!-- Shop roof -->
-  <polygon points="380,600 512,520 644,600" fill="#FFFFFF"/>
+  <!-- Radar sweep line - bright and visible -->
+  <g opacity="0.9">
+    <line x1="512" y1="512" x2="512" y2="32" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+    <line x1="512" y1="512" x2="512" y2="32" stroke="#2DD4BF" stroke-width="3" stroke-linecap="round"/>
+  </g>
   
-  <!-- Shop sign -->
-  <rect x="450" y="550" width="124" height="30" fill="#2979FF" rx="4"/>
-  <text x="512" y="570" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="16" font-weight="bold">SHOP</text>
+  <!-- Small Shop 1 - Top center at 0° (r=320) -->
+  <g transform="translate(512, 192)" filter="url(#shadow)">
+    <rect x="-35" y="35" width="70" height="55" fill="#FFFFFF" rx="5"/>
+    <polygon points="-42,35 0,5 42,35" fill="#FFFFFF"/>
+    <rect x="-28" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="-10" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="8" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="-10" y="72" width="14" height="18" fill="#2979FF" rx="2"/>
+  </g>
   
-  <!-- Radar center dot -->
-  <circle cx="512" cy="512" r="20" fill="#FFFFFF"/>
+  <!-- Small Shop 2 - Top-right at 60° (r=360) -->
+  <g transform="translate(823.6, 200.4)" filter="url(#shadow)">
+    <rect x="-35" y="35" width="70" height="55" fill="#FFFFFF" rx="5"/>
+    <polygon points="-42,35 0,5 42,35" fill="#FFFFFF"/>
+    <rect x="-28" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="-10" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="8" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="-10" y="72" width="14" height="18" fill="#2979FF" rx="2"/>
+  </g>
+  
+  <!-- Small Shop 3 - Right side at 90° (r=380, moved in) -->
+  <g transform="translate(892, 512)" filter="url(#shadow)">
+    <rect x="-35" y="35" width="70" height="55" fill="#FFFFFF" rx="5"/>
+    <polygon points="-42,35 0,5 42,35" fill="#FFFFFF"/>
+    <rect x="-28" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="-10" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="8" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="-10" y="72" width="14" height="18" fill="#2979FF" rx="2"/>
+  </g>
+  
+  <!-- Small Shop 4 - Bottom-right at 135° (r=420, moved in) -->
+  <g transform="translate(805, 805)" filter="url(#shadow)">
+    <rect x="-35" y="35" width="70" height="55" fill="#FFFFFF" rx="5"/>
+    <polygon points="-42,35 0,5 42,35" fill="#FFFFFF"/>
+    <rect x="-28" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="-10" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="8" y="45" width="14" height="14" fill="#2979FF" opacity="0.5"/>
+    <rect x="-10" y="72" width="14" height="18" fill="#2979FF" rx="2"/>
+  </g>
+  
+  <!-- Small Shop 5 - Bottom center at 180° (r=280) -->
+  <g transform="translate(512, 792)" filter="url(#shadow)">
+    <rect x="-30" y="30" width="60" height="48" fill="#FFFFFF" rx="4"/>
+    <polygon points="-37,30 0,8 37,30" fill="#FFFFFF"/>
+    <rect x="-24" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="-8" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="8" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="-8" y="65" width="12" height="13" fill="#2979FF" rx="2"/>
+  </g>
+  
+  <!-- Small Shop 6 - Bottom-left at 240° (r=280, moved in more) -->
+  <g transform="translate(270, 855)" filter="url(#shadow)">
+    <rect x="-30" y="30" width="60" height="48" fill="#FFFFFF" rx="4"/>
+    <polygon points="-37,30 0,8 37,30" fill="#FFFFFF"/>
+    <rect x="-24" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="-8" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="8" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="-8" y="65" width="12" height="13" fill="#2979FF" rx="2"/>
+  </g>
+  
+  <!-- Small Shop 7 - Left side at 270° (r=360) -->
+  <g transform="translate(152, 512)" filter="url(#shadow)">
+    <rect x="-30" y="30" width="60" height="48" fill="#FFFFFF" rx="4"/>
+    <polygon points="-37,30 0,8 37,30" fill="#FFFFFF"/>
+    <rect x="-24" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="-8" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="8" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="-8" y="65" width="12" height="13" fill="#2979FF" rx="2"/>
+  </g>
+  
+  <!-- Small Shop 8 - Top-left at 300° (r=380, moved in) -->
+  <g transform="translate(183, 183)" filter="url(#shadow)">
+    <rect x="-30" y="30" width="60" height="48" fill="#FFFFFF" rx="4"/>
+    <polygon points="-37,30 0,8 37,30" fill="#FFFFFF"/>
+    <rect x="-24" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="-8" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="8" y="38" width="12" height="12" fill="#2979FF" opacity="0.5"/>
+    <rect x="-8" y="65" width="12" height="13" fill="#2979FF" rx="2"/>
+  </g>
+  
+  <!-- Central Scanner Device - Improved Premium Design -->
+  <g transform="translate(337, 337)" filter="url(#shadow)">
+    <!-- Outer glow effect -->
+    <rect x="-10" y="-10" width="360" height="240" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.1" rx="20"/>
+    
+    <!-- Scanner main body with premium look -->
+    <rect x="0" y="0" width="340" height="220" fill="#FFFFFF" rx="18"/>
+    
+    <!-- Inner shadow depth -->
+    <rect x="6" y="6" width="328" height="208" fill="#F5F5F5" rx="14"/>
+    
+    <!-- Scanner top bezel -->
+    <rect x="12" y="12" width="316" height="42" fill="#FFFFFF" rx="10"/>
+    <rect x="15" y="15" width="310" height="36" fill="#E3F2FD" rx="8"/>
+    
+    <!-- Premium scanner screen -->
+    <rect x="20" y="70" width="300" height="130" fill="#0D47A1" rx="12" opacity="0.95"/>
+    <rect x="25" y="75" width="290" height="120" fill="#1565C0" rx="10" opacity="0.9"/>
+    
+    <!-- Screen inner frame -->
+    <rect x="30" y="80" width="280" height="110" fill="#1A237E" rx="8"/>
+    
+    <!-- Enhanced scanning laser beam effect -->
+    <g opacity="0.9">
+      <rect x="50" y="95" width="260" height="4" fill="#2DD4BF" rx="2">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="50" y="115" width="260" height="3" fill="#2979FF" rx="1.5" opacity="0.8">
+        <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.2s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="50" y="135" width="260" height="4" fill="#2DD4BF" rx="2">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="2.1s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="50" y="155" width="260" height="3" fill="#2979FF" rx="1.5" opacity="0.8">
+        <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.3s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+    
+    <!-- Refined barcode scanning pattern -->
+    <g opacity="0.7">
+      <rect x="60" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="70" y="100" width="3" height="40" fill="#FFFFFF"/>
+      <rect x="78" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="88" y="100" width="7" height="40" fill="#FFFFFF"/>
+      <rect x="100" y="100" width="3" height="40" fill="#FFFFFF"/>
+      <rect x="108" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="118" y="100" width="3" height="40" fill="#FFFFFF"/>
+      <rect x="126" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="136" y="100" width="7" height="40" fill="#FFFFFF"/>
+      <rect x="148" y="100" width="3" height="40" fill="#FFFFFF"/>
+      <rect x="156" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="166" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="176" y="100" width="3" height="40" fill="#FFFFFF"/>
+      <rect x="184" y="100" width="7" height="40" fill="#FFFFFF"/>
+      <rect x="196" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="206" y="100" width="3" height="40" fill="#FFFFFF"/>
+      <rect x="214" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="224" y="100" width="7" height="40" fill="#FFFFFF"/>
+      <rect x="236" y="100" width="3" height="40" fill="#FFFFFF"/>
+      <rect x="244" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="254" y="100" width="5" height="40" fill="#FFFFFF"/>
+      <rect x="264" y="100" width="3" height="40" fill="#FFFFFF"/>
+      <rect x="272" y="100" width="7" height="40" fill="#FFFFFF"/>
+      <rect x="284" y="100" width="5" height="40" fill="#FFFFFF"/>
+    </g>
+    
+    <!-- Premium scanner handle/grip -->
+    <rect x="120" y="220" width="100" height="35" fill="#FFFFFF" rx="8"/>
+    <rect x="125" y="225" width="90" height="25" fill="#2979FF" rx="5" opacity="0.15"/>
+    <!-- Enhanced grip lines -->
+    <rect x="130" y="230" width="80" height="2" fill="#2979FF" opacity="0.4"/>
+    <rect x="130" y="236" width="80" height="2" fill="#2979FF" opacity="0.4"/>
+    <rect x="130" y="242" width="80" height="2" fill="#2979FF" opacity="0.4"/>
+    <rect x="130" y="248" width="80" height="2" fill="#2979FF" opacity="0.4"/>
+    
+    <!-- Premium control buttons -->
+    <circle cx="40" cy="33" r="8" fill="#2979FF"/>
+    <circle cx="40" cy="33" r="5" fill="#FFFFFF"/>
+    <circle cx="65" cy="33" r="7" fill="#2979FF" opacity="0.8"/>
+    <circle cx="65" cy="33" r="4" fill="#FFFFFF"/>
+    <circle cx="90" cy="33" r="6" fill="#2979FF" opacity="0.6"/>
+    <circle cx="90" cy="33" r="3" fill="#FFFFFF"/>
+    
+    <!-- Enhanced active scanning indicator with pulse -->
+    <circle cx="300" cy="33" r="7" fill="#2DD4BF">
+      <animate attributeName="opacity" values="0.5;1;0.5" dur="1s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="300" cy="33" r="10" fill="#2DD4BF" opacity="0.4">
+      <animate attributeName="opacity" values="0.2;0.6;0.2" dur="1s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="300" cy="33" r="13" fill="#2DD4BF" opacity="0.2">
+      <animate attributeName="opacity" values="0.1;0.4;0.1" dur="1s" repeatCount="indefinite"/>
+    </circle>
+    
+    <!-- Premium scanner LED status lights -->
+    <rect x="110" y="25" width="24" height="4" fill="#2DD4BF" rx="2" opacity="0.9"/>
+    <rect x="140" y="25" width="24" height="4" fill="#2979FF" rx="2" opacity="0.7"/>
+    <rect x="170" y="25" width="24" height="4" fill="#2DD4BF" rx="2" opacity="0.8"/>
+    
+    <!-- Scanner brand badge -->
+    <rect x="200" y="27" width="60" height="20" fill="#2979FF" rx="4" opacity="0.2"/>
+    <text x="230" y="40" text-anchor="middle" fill="#2979FF" font-family="Arial, sans-serif" font-size="10" font-weight="bold">SCAN</text>
+  </g>
+  
+  </g>
+  <!-- End of clipped content -->
 </svg>

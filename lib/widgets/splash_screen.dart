@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 
 class SplashScreen extends StatefulWidget {
@@ -162,10 +163,14 @@ class _SplashScreenState extends State<SplashScreen>
                                     ),
                                   ],
                                 ),
-                                child: const Icon(
-                                  Icons.radar,
-                                  size: 60,
-                                  color: Color(0xFF2979FF),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: SvgPicture.asset(
+                                    'assets/images/shopradar_icon.svg',
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ),
                             );
@@ -187,11 +192,12 @@ class _SplashScreenState extends State<SplashScreen>
                           opacity: _textAnimation.value,
                           child: Text(
                             'ShopRadar',
-                            style: GoogleFonts.poppins(
+                            style: GoogleFonts.inter(
                               fontSize: 32,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
                               color: const Color(0xFF2979FF),
-                              letterSpacing: 1.2,
+                              letterSpacing: -0.5,
+                              height: 1.2,
                             ),
                           ),
                         ),

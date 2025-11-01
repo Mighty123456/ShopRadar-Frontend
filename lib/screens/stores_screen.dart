@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:math' as math;
 import '../models/shop.dart';
@@ -8,6 +9,7 @@ import '../services/favorite_shops_service.dart';
 import 'shop_details_screen.dart';
 import 'map_screen_free.dart';
 import '../widgets/voice_search_button.dart';
+import '../widgets/radar_loader.dart';
 
 class StoresScreen extends StatefulWidget {
   const StoresScreen({super.key});
@@ -305,11 +307,97 @@ class _StoresScreenState extends State<StoresScreen> {
     final isTablet = screenSize.width > 600;
     final isLargeScreen = screenSize.width > 900;
 
+    final searchController = TextEditingController(text: _searchQuery);
+
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2979FF),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
-        title: const Text('Stores'),
+        toolbarHeight: isTablet ? 90 : (isLargeScreen ? 100 : 80),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF2979FF),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2979FF).withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
+        title: Container(
+          height: isTablet ? 48 : 44,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: TextField(
+            controller: searchController,
+            style: TextStyle(
+              color: Colors.grey[800],
+              fontSize: isTablet ? 16 : 15,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search stores...',
+              hintStyle: TextStyle(
+                color: Colors.grey[400],
+                fontSize: isTablet ? 16 : 15,
+                fontWeight: FontWeight.w400,
+              ),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 20 : 16,
+                vertical: isTablet ? 14 : 12,
+              ),
+              prefixIcon: Icon(
+                Icons.search,
+                color: const Color(0xFF2979FF),
+                size: isTablet ? 22 : 20,
+              ),
+              suffixIcon: VoiceSearchButton(
+                onVoiceResult: (result) {
+                  searchController.text = result;
+                  setState(() {
+                    _searchQuery = result;
+                  });
+                  _applyFilters();
+                },
+                iconColor: Colors.grey[600],
+                iconSize: isTablet ? 20 : 18,
+                tooltip: 'Voice search',
+              ),
+            ),
+            onSubmitted: (value) {
+              HapticFeedback.lightImpact();
+              setState(() {
+                _searchQuery = value;
+              });
+              _applyFilters();
+            },
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+              });
+              _applyFilters();
+            },
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -320,8 +408,8 @@ class _StoresScreenState extends State<StoresScreen> {
       ),
       body: Column(
         children: [
-          // Search and filters
-          _buildSearchAndFilters(isTablet),
+          // Filters section (below search bar)
+          _buildFiltersSection(isTablet),
           
           // Results count
           if (!_isLoading && _filteredShops.isNotEmpty)
@@ -353,7 +441,13 @@ class _StoresScreenState extends State<StoresScreen> {
           // Content
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(
+                    child: RadarLoader(
+                      size: isTablet ? 200 : 180,
+                      message: 'Loading Stores...',
+                      useAppColors: true,
+                    ),
+                  )
                 : _filteredShops.isEmpty
                     ? _buildEmptyState()
                     : _buildStoresList(isTablet, isLargeScreen),
@@ -363,63 +457,14 @@ class _StoresScreenState extends State<StoresScreen> {
     );
   }
 
-  Widget _buildSearchAndFilters(bool isTablet) {
+  Widget _buildFiltersSection(bool isTablet) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
       ),
-      child: Column(
-        children: [
-          // Search bar
-          TextField(
-            controller: TextEditingController(text: _searchQuery),
-            decoration: InputDecoration(
-              hintText: 'Search stores...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  VoiceSearchButton(
-                    onVoiceResult: (result) {
-                      setState(() {
-                        _searchQuery = result;
-                      });
-                      _applyFilters();
-                    },
-                    iconColor: Colors.grey[600],
-                    iconSize: 20,
-                    tooltip: 'Voice search',
-                  ),
-                  if (_searchQuery.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        setState(() {
-                          _searchQuery = '';
-                        });
-                        _applyFilters();
-                      },
-                    ),
-                ],
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-              });
-              _applyFilters();
-            },
-          ),
-          
-          const SizedBox(height: 12),
-          
-          // Filter chips
-          SingleChildScrollView(
+      child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
@@ -439,8 +484,6 @@ class _StoresScreenState extends State<StoresScreen> {
                 }),
               ],
             ),
-          ),
-        ],
       ),
     );
   }

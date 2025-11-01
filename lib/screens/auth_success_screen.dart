@@ -1,5 +1,6 @@
  import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
 
@@ -180,12 +181,13 @@ class _AuthSuccessScreenState extends State<AuthSuccessScreen>
                     opacity: _fadeAnimation,
                     child: Column(
                       children: [
-                        const Text(
+                        Text(
                           'Welcome to ShopRadar!',
-                          style: TextStyle(
+                          style: GoogleFonts.inter(
                             fontSize: 28,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                             color: Color(0xFF2979FF),
+                            letterSpacing: -0.3,
                           ),
                           textAlign: TextAlign.center,
                         ),
